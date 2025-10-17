@@ -24,7 +24,7 @@ uploaded_file = st.file_uploader("Importez votre fichier de logs (CSV ou TXT, pa
 # Champ pour fournir l'URL raw GitHub du fichier robots-ia.txt
 robots_url = st.text_input(
     "URL brute du fichier robots-ia.txt sur GitHub (raw)",
-    "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website/e21bed70c4b9cdf9013f9c17da6490c95395f6c6/robots-ia.txt",
+    "https://github.com/hoppy-lab/files/blob/main/robots-ia.txt",
 )
 
 
