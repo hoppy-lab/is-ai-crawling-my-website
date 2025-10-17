@@ -256,30 +256,28 @@ if uploaded_file:
         # ------------------- Debug : IP détectées comme bots IA -------------------
 st.markdown("### 🔍 50 premières IP détectées comme bots IA")
 
-if robots_df is None or robots_df.empty:
-    st.info("Le fichier robots-ia est vide ou n'a pas été chargé correctement.")
+all_matched_rows = []
+
+# Parcours des bots analysés (même logique que dans ton code principal)
+for group_title, crawler_names in groups.items():
+    for cname in crawler_names:
+        defs = robots_df[robots_df["Nom"].astype(str).str.contains(cname, case=False, na=False)]
+        if defs.empty:
+            continue
+        for _, r in defs.iterrows():
+            ip_pref = str(r["IP"]).strip()
+            ua_sub = str(r["User-Agent"]).strip()
+            _, _, _, matched = analyze_crawler(df, ip_pref, ua_sub)
+            if not matched.empty:
+                all_matched_rows.append(matched)
+
+if all_matched_rows:
+    all_matched_df = pd.concat(all_matched_rows).drop_duplicates()
+    st.write(f"Nombre total de lignes matchées : {all_matched_df.shape[0]}")
+    st.write("50 premières IP détectées :")
+    st.write(all_matched_df["IP"].head(50).tolist())
 else:
-    detected_ips = []
-
-    for _, bot in robots_df.iterrows():
-        ip_sub = str(bot["IP"] or "").strip()
-        ua_sub = str(bot["User-Agent"] or "").strip()
-
-        # filtre des lignes correspondantes
-        ip_mask = df["IP"].astype(str).str.contains(ip_sub, na=False) if ip_sub else pd.Series([True] * len(df))
-        ua_mask = df["User-Agent"].astype(str).str.contains(ua_sub, case=False, na=False) if ua_sub else pd.Series([True] * len(df))
-
-        matched = df[ip_mask & ua_mask]
-        detected_ips.extend(matched["IP"].tolist())
-
-    # supprimer doublons
-    detected_ips = list(dict.fromkeys(detected_ips))
-
-    if detected_ips:
-        st.write(f"Nombre total de IP détectées : {len(detected_ips)}")
-        st.write(detected_ips[:50])  # on affiche les 50 premières IP
-    else:
-        st.info("Aucune IP détectée comme bot IA pour le moment.")
+    st.info("Aucune IP détectée comme bot IA pour le moment.")
         
     )
 else:
