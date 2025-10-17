@@ -163,7 +163,7 @@ if uploaded_file:
 
     st.success(f"Fichier importé : {uploaded_file.name}")
     st.write("Aperçu (premières lignes) :")
-    st.dataframe(df_raw.head())
+    st.table(df_raw)
 
     # normalisation des colonnes
     df = normalize_columns(df_raw)
