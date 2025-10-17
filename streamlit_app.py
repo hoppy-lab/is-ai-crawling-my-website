@@ -36,7 +36,7 @@ def is_compressed_name(name: str) -> bool:
     return any(name.endswith(ext) for ext in (".zip", ".gz", ".bz2", ".xz", ".7z", ".tar"))
 
 IP_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
-STATUS_RE = re.compile(r"\b([1-5]\d{2})\b")
+STATUS_RE = re.compile(r"(?:\s|^)([1-5]\d{2})(?:\s|$)")
 
 def extract_from_text_lines(text: str) -> pd.DataFrame:
     rows = []
@@ -249,7 +249,7 @@ if uploaded_file:
         st.markdown("")
 
     st.info(
-        "Interprétation : 'yes' = trouvé au moins une fois ET tous les hits ont des codes 2xx, 3xx ou 4xx. "
+        "Interprétation :\n 'yes' = trouvé au moins une fois ET tous les hits ont des codes 2xx, 3xx ou 4xx.\n "
         "'no' = pas trouvé ou un/plusieurs hits ont rencontré des codes hors de ces familles (ex. 5xx ou statut non numérique)."
     )
 else:
