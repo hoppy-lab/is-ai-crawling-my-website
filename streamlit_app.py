@@ -250,34 +250,8 @@ if uploaded_file:
 
     st.info(
         "Interprétation :\n 'yes' = trouvé au moins une fois ET tous les hits ont des codes 2xx, 3xx ou 4xx.\n "
-        "'no' = pas trouvé ou un/plusieurs hits ont rencontré des codes hors de ces familles (ex. 5xx ou statut non numérique).")
+        "'no' = pas trouvé ou un/plusieurs hits ont rencontré des codes hors de ces familles (ex. 5xx ou statut non numérique)."
         
-        
-        # ------------------- Debug : IP détectées comme bots IA -------------------
-st.markdown("### 🔍 50 premières IP détectées comme bots IA")
-
-all_matched_rows = []
-
-# Parcours des bots analysés (même logique que dans ton code principal)
-for group_title, crawler_names in groups.items():
-    for cname in crawler_names:
-        defs = robots_df[robots_df["Nom"].astype(str).str.contains(cname, case=False, na=False)]
-        if defs.empty:
-            continue
-        for _, r in defs.iterrows():
-            ip_pref = str(r["IP"]).strip()
-            ua_sub = str(r["User-Agent"]).strip()
-            _, _, _, matched = analyze_crawler(df, ip_pref, ua_sub)
-            if not matched.empty:
-                all_matched_rows.append(matched)
-
-if all_matched_rows:
-    all_matched_df = pd.concat(all_matched_rows).drop_duplicates()
-    st.write(f"Nombre total de lignes matchées : {all_matched_df.shape[0]}")
-    st.write("50 premières IP détectées :")
-    st.write(all_matched_df["IP"].head(50).tolist())
-else:
-    st.info("Aucune IP détectée comme bot IA pour le moment.")
         
     )
 else:
