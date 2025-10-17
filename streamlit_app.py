@@ -255,50 +255,34 @@ if uploaded_file:
 else:
     st.info("Importez un fichier de logs pour lancer l'analyse.")
     
-    
-    # ------------------- Debug : IP détectées comme bots IA -------------------
-st.markdown("### 🔍 IP des lignes identifiées comme bots IA")
 
-# On va stocker toutes les IP détectées pour tous les bots
-crawler_ips = []
+
+
+
+# ------------------- Debug : IP détectées comme bots IA -------------------
+st.markdown("### 🔍 50 premières IP détectées comme bots IA")
 
 if robots_df is None or robots_df.empty:
-    st.error("Le fichier robots-ia n'a pas été chargé correctement ou est vide.")
+    st.info("Le fichier robots-ia est vide ou n'a pas été chargé correctement.")
 else:
-    for i, (_, bot) in enumerate(robots_df.iterrows()):
+    detected_ips = []
+
+    for _, bot in robots_df.iterrows():
         ip_sub = str(bot["IP"] or "").strip()
         ua_sub = str(bot["User-Agent"] or "").strip()
-        name = str(bot["Nom"] or "").strip()
 
+        # filtre des lignes correspondantes
         ip_mask = df["IP"].astype(str).str.contains(ip_sub, na=False) if ip_sub else pd.Series([True] * len(df))
         ua_mask = df["User-Agent"].astype(str).str.contains(ua_sub, case=False, na=False) if ua_sub else pd.Series([True] * len(df))
 
         matched = df[ip_mask & ua_mask]
+        detected_ips.extend(matched["IP"].tolist())
 
-        if not matched.empty:
-            st.write(f"{name} : {matched['IP'].unique().tolist()}")
+    # supprimer doublons
+    detected_ips = list(dict.fromkeys(detected_ips))
 
-for i, (_, bot) in enumerate(robots_df.iterrows()):
-    ip_sub = str(bot["IP"] or "").strip()
-    ua_sub = str(bot["User-Agent"] or "").strip()
-    name = str(bot["Nom"] or "").strip()
-
-    # Filtrage comme dans analyze_crawler
-    ip_mask = df["IP"].astype(str).str.contains(ip_sub, na=False) if ip_sub else pd.Series([True] * len(df))
-    ua_mask = df["User-Agent"].astype(str).str.contains(ua_sub, case=False, na=False) if ua_sub else pd.Series([True] * len(df))
-
-    matched = df[ip_mask & ua_mask]
-
-    if not matched.empty:
-        # On récupère les IP
-        crawler_ips.extend(matched["IP"].unique())
-
-# Supprimer les doublons et trier
-crawler_ips = sorted(set(crawler_ips))
-
-# Afficher
-if crawler_ips:
-    st.write(f"**IP détectées comme bots IA ({len(crawler_ips)} uniques) :**")
-    st.write(crawler_ips)
-else:
-    st.info("Aucune IP détectée comme bot IA pour le moment.")
+    if detected_ips:
+        st.write(f"Nombre total de IP détectées : {len(detected_ips)}")
+        st.write(detected_ips[:50])  # on affiche les 50 premières IP
+    else:
+        st.info("Aucune IP détectée comme bot IA pour le moment.")
