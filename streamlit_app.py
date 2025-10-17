@@ -97,7 +97,7 @@ def try_load_logs(uploaded) -> pd.DataFrame | None:
 def load_robots_local(path="robots-ia.txt") -> pd.DataFrame | None:
     """Lit le fichier robots-ia.txt local."""
     try:
-        return pd.read_csv(path, sep=";")
+        return pd.read_csv(path, sep="\t")
     except Exception as e:
         st.error(f"Erreur lors du chargement du fichier robots-ia local : {e}")
         return None
