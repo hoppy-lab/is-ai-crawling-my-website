@@ -1,5 +1,6 @@
 import re
 from io import StringIO
+
 import pandas as pd
 import streamlit as st
 
@@ -7,7 +8,6 @@ import streamlit as st
 # Is AI crawling my website ? — application Streamlit
 # --------------------------------------------------------------------
 
-# Configuration page
 st.set_page_config(page_title="Is AI crawling my website ?")
 st.title("Is AI crawling my website ?")
 st.markdown(
@@ -18,13 +18,13 @@ st.markdown(
 """
 )
 
-# Inputs utilisateur
 uploaded_file = st.file_uploader(
-    "Importez votre fichier de logs (CSV ou TXT, pas d'archive)", 
+    "Importez votre fichier de logs (CSV ou TXT, pas d'archive)",
     type=["csv", "txt"]
 )
 
-# ------------------- Helpers / utilitaires -------------------
+# ------------------- Helpers -------------------
+
 def is_compressed_name(name: str) -> bool:
     name = (name or "").lower()
     return any(name.endswith(ext) for ext in (".zip", ".gz", ".bz2", ".xz", ".7z", ".tar"))
@@ -77,7 +77,6 @@ def try_load_logs(uploaded) -> pd.DataFrame | None:
         st.error(f"Impossible de lire le fichier : {e}")
         return None
 
-    # tenter CSV ';' puis ','
     for sep in (";", ","):
         try:
             df = pd.read_csv(StringIO(content), sep=sep)
@@ -85,14 +84,11 @@ def try_load_logs(uploaded) -> pd.DataFrame | None:
         except Exception:
             continue
 
-    # fallback texte libre
     return extract_from_text_lines(content)
 
 def load_robots_local(path="robots-ia.txt") -> pd.DataFrame | None:
     try:
-        df = pd.read_csv(path, sep="\t")
-        df.columns = [c.strip() for c in df.columns]  # nettoyer les colonnes
-        return df
+        return pd.read_csv(path, sep="\t")
     except Exception as e:
         st.error(f"Erreur lors du chargement du fichier robots-ia local : {e}")
         return None
@@ -151,16 +147,13 @@ def analyze_crawler(df: pd.DataFrame, ip_prefix: str, ua_substr: str):
 
 # ------------------- Main flow -------------------
 if uploaded_file:
-    # lecture du fichier uploadé
     df_raw = try_load_logs(uploaded_file)
     if df_raw is None:
         st.stop()
 
     st.success(f"Fichier importé : {uploaded_file.name}")
-    st.write("Aperçu (premières lignes) :")
     st.table(df_raw)
 
-    # normalisation
     df = normalize_columns(df_raw)
 
     if not all(c in df.columns for c in ("IP", "User-Agent", "Status-Code")):
@@ -168,47 +161,30 @@ if uploaded_file:
         st.write("Colonnes détectées :", list(df_raw.columns))
         st.stop()
 
-    # chargement fichier robots-ia local
     robots_df = load_robots_local()
-    if robots_df is None or robots_df.empty:
-        st.error("Fichier robots-ia introuvable ou vide.")
+    if robots_df is None:
+        st.stop()
+
+    if not all(c in robots_df.columns for c in ("Nom", "IP", "User-Agent")):
+        st.error("Le fichier robots-ia doit contenir les colonnes : Nom;IP;User-Agent")
+        st.write("Colonnes trouvées dans robots-ia :", list(robots_df.columns))
         st.stop()
 
     st.success("Fichier robots-ia chargé.")
     st.write("Définitions des crawlers :", robots_df)
 
-    # groupes d'analyse
     groups = {
-        "Is Open AI crawling my website ?": [
-            "ChatGPT Search Bot",
-            "ChatGPT-User",
-            "ChatGPT-GPTBot",
-        ],
-        "Is Perplexity crawling my website ?": [
-            "Perplexity-Bot",
-            "Perplexity-User",
-        ],
-        "Is Google crawling my website ?": [
-            "Google-Gemini",
-        ],
-        "Is Mistral crawling my website ?": [
-            "MistralAI-User",
-        ],
+        "Is Open AI crawling my website ?": ["ChatGPT Search Bot", "ChatGPT-User", "ChatGPT-GPTBot"],
+        "Is Perplexity crawling my website ?": ["Perplexity-Bot", "Perplexity-User"],
+        "Is Google crawling my website ?": ["Google-Gemini"],
+        "Is Mistral crawling my website ?": ["MistralAI-User"],
     }
 
-    # ------------------- Debug pas à pas -------------------
-    st.markdown("### 🔍 Debug : suivi des correspondances IP + User-Agent")
+    st.markdown("---")
+    st.markdown("## Résultats par IA")
 
-    # Normalisation supplémentaire
-    df["IP"] = df["IP"].astype(str).str.strip()
-    df["User-Agent"] = df["User-Agent"].astype(str).str.strip()
-    robots_df["IP"] = robots_df["IP"].astype(str).str.strip()
-    robots_df["User-Agent"] = robots_df["User-Agent"].astype(str).str.strip()
-
-    # Affichage des aperçus
-    st.write("Aperçu DataFrame logs normalisé :", df.head(10))
-    st.write("Aperçu robots-ia :", robots_df.head(10))
-
+    # ------------------- Debug intégré -------------------
+    st.markdown("### 🔍 IP détectées comme bots IA")
     all_matched_rows = []
 
     for group_title, crawler_names in groups.items():
@@ -223,4 +199,19 @@ if uploaded_file:
                 ip_pref = str(r["IP"]).strip()
                 ua_sub = str(r["User-Agent"]).strip()
 
-                ip_mask = df["IP"].astype(str).str.startswith(ip_pref, na=False) if ip_pref_
+                ip_mask = df["IP"].astype(str).str.startswith(ip_pref, na=False) if ip_pref else pd.Series([True] * len(df))
+                ua_mask = df["User-Agent"].astype(str).str.contains(ua_sub, case=False, na=False) if ua_sub else pd.Series([True] * len(df))
+
+                matched = df[ip_mask & ua_mask].copy()
+                if not matched.empty:
+                    matched["Crawler"] = cname
+                    all_matched_rows.append(matched)
+
+    if all_matched_rows:
+        matched_df = pd.concat(all_matched_rows).drop_duplicates()
+        st.dataframe(matched_df[["IP", "User-Agent", "Crawler"]].head(50))
+    else:
+        st.info("Aucune IP détectée comme bot IA avec les définitions du fichier robots-ia.")
+
+else:
+    st.info("Importez un fichier de logs pour lancer l'analyse.")
