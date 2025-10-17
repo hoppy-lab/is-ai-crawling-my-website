@@ -1,14 +1,10 @@
 import re
 from io import StringIO
-
 import pandas as pd
 import streamlit as st
 
 # --------------------------------------------------------------------
 # Is AI crawling my website ? — application Streamlit
-# - charge un échantillon de logs (CSV ou TXT)
-# - détecte IP / User-Agent / Status-Code par heuristiques/regex
-# - compare aux definitions de crawlers fournies dans robots-ia.txt (local)
 # --------------------------------------------------------------------
 
 # Configuration page
@@ -29,9 +25,7 @@ uploaded_file = st.file_uploader(
 )
 
 # ------------------- Helpers / utilitaires -------------------
-
 def is_compressed_name(name: str) -> bool:
-    """Détecte certaines extensions d'archive pour les refuser."""
     name = (name or "").lower()
     return any(name.endswith(ext) for ext in (".zip", ".gz", ".bz2", ".xz", ".7z", ".tar"))
 
@@ -95,9 +89,10 @@ def try_load_logs(uploaded) -> pd.DataFrame | None:
     return extract_from_text_lines(content)
 
 def load_robots_local(path="robots-ia.txt") -> pd.DataFrame | None:
-    """Lit le fichier robots-ia.txt local."""
     try:
-        return pd.read_csv(path, sep="\t")
+        df = pd.read_csv(path, sep="\t")
+        df.columns = [c.strip() for c in df.columns]  # nettoyer les colonnes
+        return df
     except Exception as e:
         st.error(f"Erreur lors du chargement du fichier robots-ia local : {e}")
         return None
@@ -165,7 +160,7 @@ if uploaded_file:
     st.write("Aperçu (premières lignes) :")
     st.table(df_raw)
 
-    # normalisation des colonnes
+    # normalisation
     df = normalize_columns(df_raw)
 
     if not all(c in df.columns for c in ("IP", "User-Agent", "Status-Code")):
@@ -173,14 +168,10 @@ if uploaded_file:
         st.write("Colonnes détectées :", list(df_raw.columns))
         st.stop()
 
-    # chargement automatique du fichier robots-ia local
+    # chargement fichier robots-ia local
     robots_df = load_robots_local()
-    if robots_df is None:
-        st.stop()
-
-    if not all(c in robots_df.columns for c in ("Nom", "IP", "User-Agent")):
-        st.error("Le fichier robots-ia doit contenir les colonnes : Nom;IP;User-Agent")
-        st.write("Colonnes trouvées dans robots-ia :", list(robots_df.columns))
+    if robots_df is None or robots_df.empty:
+        st.error("Fichier robots-ia introuvable ou vide.")
         st.stop()
 
     st.success("Fichier robots-ia chargé.")
@@ -205,59 +196,31 @@ if uploaded_file:
         ],
     }
 
-    st.markdown("---")
-    st.markdown("## Résultats par IA")
+    # ------------------- Debug pas à pas -------------------
+    st.markdown("### 🔍 Debug : suivi des correspondances IP + User-Agent")
+
+    # Normalisation supplémentaire
+    df["IP"] = df["IP"].astype(str).str.strip()
+    df["User-Agent"] = df["User-Agent"].astype(str).str.strip()
+    robots_df["IP"] = robots_df["IP"].astype(str).str.strip()
+    robots_df["User-Agent"] = robots_df["User-Agent"].astype(str).str.strip()
+
+    # Affichage des aperçus
+    st.write("Aperçu DataFrame logs normalisé :", df.head(10))
+    st.write("Aperçu robots-ia :", robots_df.head(10))
+
+    all_matched_rows = []
 
     for group_title, crawler_names in groups.items():
-        st.markdown(f"### {group_title}")
+        st.markdown(f"### Analyse du groupe : {group_title}")
         for cname in crawler_names:
             defs = robots_df[robots_df["Nom"].astype(str).str.contains(cname, case=False, na=False)]
             if defs.empty:
-                st.write(f"- {cname} : définition introuvable dans robots-ia.")
+                st.warning(f"- {cname} : définition introuvable dans robots-ia.")
                 continue
-
-            total_hits = 0
-            total_counts = {}
-            all_allowed = True
-            any_hit = False
-            example_rows = []
 
             for _, r in defs.iterrows():
                 ip_pref = str(r["IP"]).strip()
                 ua_sub = str(r["User-Agent"]).strip()
-                hits, counts, allowed, matched = analyze_crawler(df, ip_pref, ua_sub)
-                total_hits += hits
-                any_hit = any_hit or (hits > 0)
-                for k, v in counts.items():
-                    total_counts[k] = total_counts.get(k, 0) + v
-                if not allowed:
-                    all_allowed = False
-                if hits > 0:
-                    example_rows.append(matched.head(3))
 
-            if not any_hit:
-                st.write(f"- {cname} : no – No hit detected by {cname}")
-                continue
-
-            result_yes = (total_hits > 0) and all_allowed
-            st.write(f"- {cname} : {'yes' if result_yes else 'no'}  (hits = {total_hits})")
-            st.write("  - Count par status code :", total_counts)
-            if example_rows:
-                ex = pd.concat(example_rows).drop_duplicates()
-                st.write("  - Exemples de lignes matchées :")
-                st.dataframe(ex[["IP", "User-Agent", "Status-Code"]].head(5))
-        st.markdown("")
-
-    st.info(
-        "Interprétation :\n 'yes' = trouvé au moins une fois ET tous les hits ont des codes 2xx, 3xx ou 4xx.\n "
-        "'no' = pas trouvé ou un/plusieurs hits ont rencontré des codes hors de ces familles (ex. 5xx ou statut non numérique)."
-        
-        
-    )
-else:
-    st.info("Importez un fichier de logs pour lancer l'analyse.")
-    
-
-
-
-
+                ip_mask = df["IP"].astype(str).str.startswith(ip_pref, na=False) if ip_pref_
