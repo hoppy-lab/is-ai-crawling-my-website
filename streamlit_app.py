@@ -52,7 +52,7 @@ def extract_from_text_lines(text: str) -> pd.DataFrame:
         ip = ip_m.group() if ip_m else ""
         status_m = STATUS_RE.search(line)
         status = status_m.group() if status_m else ""
-        quoted = re.findall(r'"([^"]{3,500})"', line)
+        quoted = re.findall(r'"([1-5]\d{2})"', line)
         ua = quoted[-1].strip() if quoted else ""
         if not ua:
             low = line.lower()
@@ -249,7 +249,7 @@ if uploaded_file:
         st.markdown("")
 
     st.info(
-        "Interprétation :\n'yes' = trouvé au moins une fois ET tous les hits ont des codes 2xx, 3xx ou 4xx.\n "
+        "Interprétation : 'yes' = trouvé au moins une fois ET tous les hits ont des codes 2xx, 3xx ou 4xx. "
         "'no' = pas trouvé ou un/plusieurs hits ont rencontré des codes hors de ces familles (ex. 5xx ou statut non numérique)."
     )
 else:
