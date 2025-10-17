@@ -512,16 +512,25 @@ if uploaded_file:
 else:
     st.info("Importez un fichier de logs pour lancer l'analyse.")
     
-    # ------------------- Debug : aperçu des données -------------------
-st.markdown("### 🔍 Debug : Vérification des colonnes extraites")
+# ------------------- Debug : lignes correspondant aux bots IA -------------------
+st.markdown("### 🔍 Debug : lignes identifiées comme bots IA")
 
-# Affiche quelques IP et User-Agent issus de tes logs
-st.write("**Exemple d'IP extraites depuis les logs :**")
-st.write(df["IP"].dropna().unique()[:20].tolist())
+for i, (_, bot) in enumerate(robots_df.iterrows()):
+    ip_sub = str(bot["IP"] or "").strip()
+    ua_sub = str(bot["User-Agent"] or "").strip()
+    name = str(bot["Nom"] or "").strip()
 
-st.write("**Exemple de User-Agent extraits depuis les logs :**")
-st.write(df["User-Agent"].dropna().unique()[:20].tolist())
+    # On applique le même filtre que analyze_crawler
+    ip_mask = df["IP"].astype(str).str.contains(ip_sub, na=False) if ip_sub else pd.Series([True] * len(df))
+    ua_mask = df["User-Agent"].astype(str).str.contains(ua_sub, case=False, na=False) if ua_sub else pd.Series([True] * len(df))
 
-# Affiche ce qu'il y a dans robots-ia.txt
-st.write("**Définitions de robots (robots-ia.txt) :**")
-st.dataframe(robots_df.head(20))
+    matched = df[ip_mask & ua_mask]
+
+    if not matched.empty:
+        st.write(f"**{name}** : {matched.shape[0]} lignes détectées", key=f"{name}_label_{i}")
+        
+        # Utilisation de st.dataframe avec key unique pour chaque bot
+        st.dataframe(
+            matched[["IP", "User-Agent", "Status-Code", "raw"]].head(10),
+            key=f"{name}_df_{i}"
+        )
