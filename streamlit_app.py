@@ -36,7 +36,7 @@ def is_compressed_name(name: str) -> bool:
     return any(name.endswith(ext) for ext in (".zip", ".gz", ".bz2", ".xz", ".7z", ".tar"))
 
 IP_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
-STATUS_RE = re.compile(r"\b([1-5]\d{2})\b")
+STATUS_RE = re.compile(r"(?:\s|^)([1-5]\d{2})(?:\s|$)")
 
 def extract_from_text_lines(text: str) -> pd.DataFrame:
     rows = []
@@ -52,7 +52,7 @@ def extract_from_text_lines(text: str) -> pd.DataFrame:
         ip = ip_m.group() if ip_m else ""
         status_m = STATUS_RE.search(line)
         status = status_m.group() if status_m else ""
-        quoted = re.findall(r'"([1-5]\d{2})"', line)
+        quoted = re.findall(r'"([^"]{3,500})"', line)
         ua = quoted[-1].strip() if quoted else ""
         if not ua:
             low = line.lower()
