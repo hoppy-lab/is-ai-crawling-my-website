@@ -17,10 +17,9 @@ st.set_page_config(page_title="Is AI crawling my website ?")
 st.title("Is AI crawling my website ?")
 st.markdown(
     """
-- Importez un échantillon de vos logs (une journée par exemple) — max 5 Mo
+- Importez un échantillon de vos logs (une journée par exemple) — max 50 Mo
 - Aucun fichier compressé autorisé
 - Le programme essaie d'extraire automatiquement : IP, User-Agent, Status-Code (regex)
-- Fournissez l'URL brute GitHub du fichier `robots-ia.txt` (format `Nom;IP;User-Agent`) ou laissez l'URL par défaut
 """
 )
 
@@ -61,7 +60,7 @@ def extract_from_text_lines(text: str) -> pd.DataFrame:
     """
     rows = []
     known_ua_tokens = [
-        "mozilla", "curl", "bot", "spider", "bingbot", "googlebot", "gptbot", "chatgpt", "perplexity", "mistral"
+        "mozilla", "curl", "bot", "spider", "bingbot", "googlebot", "gptbot", "chatgpt", "perplexity", "mistral", "searchbot", "openai"
     ]
     for raw_line in text.splitlines():
         line = raw_line.strip()
@@ -89,7 +88,7 @@ def extract_from_text_lines(text: str) -> pd.DataFrame:
 def try_load_logs(uploaded) -> pd.DataFrame | None:
     """
     Lit le fichier uploadé :
-    - refuse les archives et fichiers > 5 Mo
+    - refuse les archives et fichiers > 50 Mo
     - tente pd.read_csv avec ';' puis ','
     - en fallback, parse le texte avec extract_from_text_lines
     """
@@ -98,8 +97,8 @@ def try_load_logs(uploaded) -> pd.DataFrame | None:
     if is_compressed_name(getattr(uploaded, "name", "")):
         st.error("Les fichiers compressés ne sont pas autorisés.")
         return None
-    if getattr(uploaded, "size", 0) > 5 * 1024 * 1024:
-        st.error("Fichier trop volumineux (> 5 Mo).")
+    if getattr(uploaded, "size", 0) > 50 * 1024 * 1024:
+        st.error("Fichier trop volumineux (> 50 Mo).")
         return None
 
     try:
