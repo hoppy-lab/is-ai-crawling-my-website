@@ -250,7 +250,7 @@ if uploaded_file:
 
     st.info(
         "Interprétation :\n 'yes' = trouvé au moins une fois ET tous les hits ont des codes 2xx, 3xx ou 4xx.\n "
-        "'no' = pas trouvé ou un/plusieurs hits ont rencontré des codes hors de ces familles (ex. 5xx ou statut non numérique)."
+        "'no' = pas trouvé ou un/plusieurs hits ont rencontré des codes hors de ces familles (ex. 5xx ou statut non numérique).")
         
         
         # ------------------- Debug : IP détectées comme bots IA -------------------
