@@ -2,14 +2,13 @@ import re
 from io import StringIO
 
 import pandas as pd
-import requests
 import streamlit as st
 
 # --------------------------------------------------------------------
 # Is AI crawling my website ? — application Streamlit
 # - charge un échantillon de logs (CSV ou TXT)
 # - détecte IP / User-Agent / Status-Code par heuristiques/regex
-# - compare aux definitions de crawlers fournies dans robots-ia.txt (GitHub)
+# - compare aux definitions de crawlers fournies dans robots-ia.txt (local)
 # --------------------------------------------------------------------
 
 # Configuration page
@@ -24,43 +23,26 @@ st.markdown(
 )
 
 # Inputs utilisateur
-uploaded_file = st.file_uploader("Importez votre fichier de logs (CSV ou TXT, pas d'archive)", type=["csv", "txt"])
-robots_url = st.text_input(
-    "URL brute du fichier robots-ia.txt sur GitHub (raw)",
-    "https://github.com/hoppy-lab/is-ai-crawling-my-website/blob/main/robots-ia.txt",
+uploaded_file = st.file_uploader(
+    "Importez votre fichier de logs (CSV ou TXT, pas d'archive)", 
+    type=["csv", "txt"]
 )
 
-
 # ------------------- Helpers / utilitaires -------------------
-def to_raw_github(url: str) -> str:
-    """Convertit une URL GitHub contenant /blob/ en URL raw.githubusercontent.com."""
-    if not url:
-        return url
-    if "github.com" in url and "/blob/" in url:
-        return url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
-    return url
-
 
 def is_compressed_name(name: str) -> bool:
     """Détecte certaines extensions d'archive pour les refuser."""
     name = (name or "").lower()
     return any(name.endswith(ext) for ext in (".zip", ".gz", ".bz2", ".xz", ".7z", ".tar"))
 
-
 IP_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 STATUS_RE = re.compile(r"\b([1-5]\d{2})\b")
 
-
 def extract_from_text_lines(text: str) -> pd.DataFrame:
-    """
-    Parse libre ligne par ligne pour extraire IP / Status-Code / User-Agent.
-    - IP : premier match IPv4
-    - Status : premier code 3 chiffres (100-599)
-    - UA : dernière chaîne entre guillemets, sinon contexte autour d'un token connu
-    """
     rows = []
     known_ua_tokens = [
-        "mozilla", "curl", "bot", "spider", "bingbot", "googlebot", "gptbot", "chatgpt", "perplexity", "mistral", "searchbot", "openai"
+        "mozilla", "curl", "bot", "spider", "bingbot", "googlebot",
+        "gptbot", "chatgpt", "perplexity", "mistral", "searchbot", "openai"
     ]
     for raw_line in text.splitlines():
         line = raw_line.strip()
@@ -84,14 +66,7 @@ def extract_from_text_lines(text: str) -> pd.DataFrame:
         rows.append({"IP": ip, "User-Agent": ua, "Status-Code": status, "raw": line})
     return pd.DataFrame(rows)
 
-
 def try_load_logs(uploaded) -> pd.DataFrame | None:
-    """
-    Lit le fichier uploadé :
-    - refuse les archives et fichiers > 50 Mo
-    - tente pd.read_csv avec ';' puis ','
-    - en fallback, parse le texte avec extract_from_text_lines
-    """
     if not uploaded:
         return None
     if is_compressed_name(getattr(uploaded, "name", "")):
@@ -117,31 +92,17 @@ def try_load_logs(uploaded) -> pd.DataFrame | None:
             continue
 
     # fallback texte libre
-    df = extract_from_text_lines(content)
-    return df
+    return extract_from_text_lines(content)
 
-
-def load_robots_from_url(url: str) -> pd.DataFrame | None:
-    """Télécharge et lit robots-ia.txt depuis GitHub (ou autre raw URL)."""
-    if not url:
-        st.error("URL du fichier robots-ia non fournie.")
-        return None
-    raw_url = to_raw_github(url)
+def load_robots_local(path="robots-ia.txt") -> pd.DataFrame | None:
+    """Lit le fichier robots-ia.txt local."""
     try:
-        r = requests.get(raw_url, timeout=10)
-        r.raise_for_status()
-        robots_df = pd.read_csv(StringIO(r.text), sep=";")
-        return robots_df
+        return pd.read_csv(path, sep=";")
     except Exception as e:
-        st.error(f"Erreur lors du chargement du fichier robots-ia depuis GitHub : {e}")
+        st.error(f"Erreur lors du chargement du fichier robots-ia local : {e}")
         return None
-
 
 def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Standardise / détecte colonnes IP / User-Agent / Status-Code.
-    Si elles sont absentes, extrait depuis le texte concaténé.
-    """
     cols = {c.lower(): c for c in df.columns}
     mapping = {}
     for cand in ("ip", "client_ip", "remote_addr", "remoteaddr"):
@@ -161,28 +122,17 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(columns=mapping)
 
     if not all(c in df.columns for c in ("IP", "User-Agent", "Status-Code")):
-        # si une colonne 'raw' existe, on l'utilise
         if "raw" in df.columns:
             return extract_from_text_lines("\n".join(df["raw"].astype(str).tolist()))
-        # concaténation ligne par ligne et extraction
         text_rows = df.astype(str).agg(" ".join, axis=1).tolist()
         return extract_from_text_lines("\n".join(text_rows))
 
-    # garantir présence des colonnes attendues
     for c in ("IP", "User-Agent", "Status-Code"):
         if c not in df.columns:
             df[c] = ""
     return df[["IP", "User-Agent", "Status-Code"] + [c for c in df.columns if c not in ("IP", "User-Agent", "Status-Code")]]
 
-
 def analyze_crawler(df: pd.DataFrame, ip_prefix: str, ua_substr: str):
-    """
-    Cherche les lignes du DataFrame correspondant au crawler :
-    - ip_prefix : startswith sur IP (si non vide)
-    - ua_substr : contains (case-insensitive) sur User-Agent (si non vide)
-    Retour : (nb_hits, counts_par_status, allowed_bool, matched_df)
-    allowed_bool = True si tous les status rencontrés sont numériques et dans [200-499]
-    """
     ip_prefix = str(ip_prefix or "").strip()
     ua_substr = str(ua_substr or "").strip()
 
@@ -198,19 +148,14 @@ def analyze_crawler(df: pd.DataFrame, ip_prefix: str, ua_substr: str):
 
     allowed = True
     for s in matched["__status__"].unique():
-        if not str(s).isdigit():
-            allowed = False
-            break
-        si = int(s)
-        if not (200 <= si < 500):
+        if not str(s).isdigit() or not (200 <= int(s) < 500):
             allowed = False
             break
 
     return matched.shape[0], counts, allowed, matched
 
-
 # ------------------- Main flow -------------------
-if uploaded_file and robots_url:
+if uploaded_file:
     # lecture du fichier uploadé
     df_raw = try_load_logs(uploaded_file)
     if df_raw is None:
@@ -220,17 +165,16 @@ if uploaded_file and robots_url:
     st.write("Aperçu (premières lignes) :")
     st.dataframe(df_raw.head())
 
-    # normalisation des colonnes pour obtenir IP/User-Agent/Status-Code
+    # normalisation des colonnes
     df = normalize_columns(df_raw)
 
-    # vérification minimale
     if not all(c in df.columns for c in ("IP", "User-Agent", "Status-Code")):
         st.error("Impossible d'extraire IP / User-Agent / Status-Code du fichier fourni.")
         st.write("Colonnes détectées :", list(df_raw.columns))
         st.stop()
 
-    # chargement du fichier robots-ia depuis GitHub (raw URL)
-    robots_df = load_robots_from_url(robots_url)
+    # chargement automatique du fichier robots-ia local
+    robots_df = load_robots_local()
     if robots_df is None:
         st.stop()
 
@@ -242,7 +186,7 @@ if uploaded_file and robots_url:
     st.success("Fichier robots-ia chargé.")
     st.write("Définitions des crawlers :", robots_df)
 
-    # groupes demandés
+    # groupes d'analyse
     groups = {
         "Is Open AI crawling my website ?": [
             "ChatGPT Search Bot",
@@ -264,11 +208,9 @@ if uploaded_file and robots_url:
     st.markdown("---")
     st.markdown("## Résultats par IA")
 
-    # boucle d'analyse
     for group_title, crawler_names in groups.items():
         st.markdown(f"### {group_title}")
         for cname in crawler_names:
-            # récupérer lignes de définition correspondant au nom (contains)
             defs = robots_df[robots_df["Nom"].astype(str).str.contains(cname, case=False, na=False)]
             if defs.empty:
                 st.write(f"- {cname} : définition introuvable dans robots-ia.")
@@ -311,4 +253,4 @@ if uploaded_file and robots_url:
         "'no' = pas trouvé ou un/plusieurs hits ont rencontré des codes hors de ces familles (ex. 5xx ou statut non numérique)."
     )
 else:
-    st.info("Importez un fichier de logs et renseignez l'URL brute du fichier robots-ia.txt pour lancer l'analyse.")
+    st.info("Importez un fichier de logs pour lancer l'analyse.")
