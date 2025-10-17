@@ -163,7 +163,7 @@ if uploaded_file:
 
     st.success(f"Fichier importé : {uploaded_file.name}")
     st.write("Aperçu (premières lignes) :")
-    st.table(df_raw)
+    st.dataframe(df_raw.head())
 
     # normalisation des colonnes
     df = normalize_columns(df_raw)
@@ -195,7 +195,7 @@ if uploaded_file:
         ],
         "Is Perplexity crawling my website ?": [
             "Perplexity-Bot",
-            "Perplexity-User",
+            "Perplexity‑User",
         ],
         "Is Google crawling my website ?": [
             "Google-Gemini",
@@ -249,7 +249,7 @@ if uploaded_file:
         st.markdown("")
 
     st.info(
-        "Interprétation :\n 'yes' = trouvé au moins une fois ET tous les hits ont des codes 2xx, 3xx ou 4xx.\n "
+        "Interprétation : 'yes' = trouvé au moins une fois ET tous les hits ont des codes 2xx, 3xx ou 4xx. "
         "'no' = pas trouvé ou un/plusieurs hits ont rencontré des codes hors de ces familles (ex. 5xx ou statut non numérique)."
     )
 else:
