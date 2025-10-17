@@ -251,15 +251,9 @@ if uploaded_file:
     st.info(
         "Interprétation :\n 'yes' = trouvé au moins une fois ET tous les hits ont des codes 2xx, 3xx ou 4xx.\n "
         "'no' = pas trouvé ou un/plusieurs hits ont rencontré des codes hors de ces familles (ex. 5xx ou statut non numérique)."
-    )
-else:
-    st.info("Importez un fichier de logs pour lancer l'analyse.")
-    
-
-
-
-
-# ------------------- Debug : IP détectées comme bots IA -------------------
+        
+        
+        # ------------------- Debug : IP détectées comme bots IA -------------------
 st.markdown("### 🔍 50 premières IP détectées comme bots IA")
 
 if robots_df is None or robots_df.empty:
@@ -286,3 +280,12 @@ else:
         st.write(detected_ips[:50])  # on affiche les 50 premières IP
     else:
         st.info("Aucune IP détectée comme bot IA pour le moment.")
+        
+    )
+else:
+    st.info("Importez un fichier de logs pour lancer l'analyse.")
+    
+
+
+
+
