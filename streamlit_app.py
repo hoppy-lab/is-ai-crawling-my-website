@@ -30,8 +30,7 @@ def extract_fields(line, sep):
 
 @st.cache_data
 def load_ia_crawlers():
-    df = pd.read_csv(CRAWLER_LIST_URL, sep="\t")
-    df = df.drop_duplicates(subset=["user_agent", "ip_prefix"])
+    df = pd.read_csv(CRAWLER_LIST_URL, sep="\t", names=["name", "user_agent", "ip_prefix"])
     return df
 
 def analyze_logs(lines, sep, ia_df):
@@ -45,32 +44,27 @@ def analyze_logs(lines, sep, ia_df):
     df_logs["status"] = df_logs["status"].astype(int)
 
     results = {}
-    for _, row in ia_df.iterrows():
-        crawler_name = row["name"]
-        ua_pattern = row["user_agent"].lower()
-        ip_prefix = row["ip_prefix"]
+    for ia_name in ia_df["name"].unique():
+        ia_crawlers = ia_df[ia_df["name"] == ia_name]
+        summary = {}
+        for _, row in ia_crawlers.iterrows():
+            ua_pattern = row["user_agent"].lower()
+            ip_prefix = row["ip_prefix"]
+            crawler_name = row["user_agent"]
 
-        hits = df_logs[
-            df_logs["user_agent"].str.lower().str.contains(ua_pattern) &
-            df_logs["ip"].str.startswith(ip_prefix)
-        ]
-
-        if hits.empty:
-            status = "No hit detected"
-            status_counts = {}
-        else:
-            status_counts = hits["status"].value_counts().to_dict()
-            if all(200 <= code < 500 for code in hits["status"]):
-                status = "yes"
+            hits = df_logs[
+                df_logs["user_agent"].str.lower().str.contains(ua_pattern) &
+                df_logs["ip"].str.startswith(ip_prefix)
+            ]
+            if hits.empty:
+                summary[crawler_name] = {"status": "No hit detected", "hits": {}}
             else:
-                status = "no"
-
-        if crawler_name not in results:
-            results[crawler_name] = {
-                "status": status,
-                "hits": status_counts,
-                "lines": hits
-            }
+                status_counts = hits["status"].value_counts().to_dict()
+                if all(200 <= code < 500 for code in hits["status"]):
+                    summary[crawler_name] = {"status": "yes", "hits": status_counts}
+                else:
+                    summary[crawler_name] = {"status": "no", "hits": status_counts}
+        results[ia_name] = summary
 
     return results, df_logs
 
@@ -91,15 +85,15 @@ if uploaded_file:
             ia_df = load_ia_crawlers()
             results, df_logs = analyze_logs(lines, sep, ia_df)
 
-            for crawler, info in results.items():
-                st.subheader(f"Crawler: {crawler}")
-                st.markdown(f"**Status**: {info['status']}")
-                if info['hits']:
-                    for code, count in info['hits'].items():
-                        st.markdown(f"- {code} : {count} hits")
-                if not info['lines'].empty:
-                    st.markdown("**Matched log entries:**")
-                    st.dataframe(info['lines'])
+            for ia, crawlers in results.items():
+                st.subheader(f"Is {ia} crawling my website ?")
+                for crawler, info in crawlers.items():
+                    st.markdown(f"**{crawler}** : {info['status']}")
+                    if info['hits']:
+                        for code, count in info['hits'].items():
+                            st.markdown(f"- {code} : {count} hits")
+                    else:
+                        st.markdown("- No hits")
 
-            st.subheader("📄 All extracted log entries")
+            st.subheader("📄 Extracted log entries")
             st.dataframe(df_logs)
