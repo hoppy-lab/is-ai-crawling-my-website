@@ -12,14 +12,12 @@ st.write("Upload your log file (max 5MB, non compressed).")
 log_file = st.file_uploader("Upload log file", type=['txt', 'log', 'csv'])
 
 def detect_separator(line):
-    """Detect column separator in a line"""
     for sep in [',', ';', '\t', '|']:
         if sep in line:
             return sep
     return None
 
 def extract_status_code(line, sep):
-    """Extract status code from a log line"""
     parts = line.strip().split(sep)
     for part in parts:
         if re.fullmatch(r'[2-5]\d{2}', part):
@@ -27,11 +25,6 @@ def extract_status_code(line, sep):
     return None
 
 def check_crawler_hit(line, crawler):
-    """
-    Vérifie si la ligne contient le crawler (user-agent + IP)
-    - user-agent et ip sont les colonnes du fichier robots-ia.txt
-    - name_bot sert uniquement pour l'affichage
-    """
     ua = crawler['user-agent'].strip().lower()
     ip = crawler['ip'].strip()
     line_clean = line.strip().lower()
@@ -41,7 +34,6 @@ if log_file is not None:
     if log_file.size > 5*1024*1024:
         st.error("File exceeds 5MB limit.")
     else:
-        # Read log file lines
         log_content = log_file.read().decode("utf-8").splitlines()
         if not log_content:
             st.error("Log file is empty.")
@@ -50,7 +42,6 @@ if log_file is not None:
             if sep is None:
                 st.error("Could not detect separator in log file.")
             else:
-                # --- Download and read robots-ia.txt ---
                 robots_url = "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website/e21bed70c4b9cdf9013f9c17da6490c95395f6c6/robots-ia.txt"
                 response = requests.get(robots_url)
                 if response.status_code != 200:
@@ -73,7 +64,7 @@ if log_file is not None:
                                 results[crawler['name_bot']][status_code].append(line)
                                 filtered_lines.append(line)
 
-                    # --- IA groups pour rapport ---
+                    # --- IA groups ---
                     ia_groups = {
                         "Open AI": ["ChatGPT Search Bot", "ChatGPT-User", "ChatGPT-GPTBot"],
                         "Perplexity": ["Perplexity-Bot", "Perplexity-User"],
@@ -89,21 +80,27 @@ if log_file is not None:
                             if not bot_hits:
                                 st.write(f"- {bot}: No hit detected by {bot}")
                             else:
-                                # Vérifie les status codes
                                 all_ok = all(int(code)//100 in [2,3,4] for code in bot_hits.keys())
                                 st.write(f"- {bot}: {'yes' if all_ok else 'no'}")
 
-                    # --- Tableau récap ---
-                    st.header("Summary Table")
+                    # --- Tableau récap détaillé par crawler et code ---
+                    st.header("Detailed Summary Table")
+                    all_codes = set()
+                    for codes in results.values():
+                        all_codes.update(codes.keys())
+                    all_codes = sorted(all_codes)
+
                     table_rows = []
-                    for bot, codes in results.items():
-                        code_counts = {str(code): len(lines) for code, lines in codes.items()}
-                        table_rows.append({"name_bot": bot, **code_counts})
-                    if table_rows:
-                        df_summary = pd.DataFrame(table_rows).fillna(0).astype(int)
-                        st.dataframe(df_summary)
-                    else:
-                        st.write("No AI crawler hits detected in the logs.")
+                    for crawler in crawlers:
+                        bot_name = crawler['name_bot']
+                        bot_hits = results.get(bot_name, {})
+                        row = {"name_bot": bot_name}
+                        for code in all_codes:
+                            row[str(code)] = len(bot_hits.get(code, []))
+                        table_rows.append(row)
+
+                    df_summary = pd.DataFrame(table_rows).fillna(0).astype(int)
+                    st.dataframe(df_summary)
 
                     # --- Téléchargement lignes filtrées ---
                     if filtered_lines:
