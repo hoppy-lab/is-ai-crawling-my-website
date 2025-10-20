@@ -35,16 +35,15 @@ IA_GROUPS = {
 # --- Fonction pour extraire le status code ---
 def extract_status_code(line):
     """
-    Cherche un code HTTP 3 chiffres (200-599) dans une ligne de log Apache/Nginx.
-    Fonctionne même si la ligne contient des guillemets autour du User-Agent ou du chemin.
+    Extrait le code HTTP d'une ligne de log Apache/Nginx.
+    Cherche le nombre à 3 chiffres juste après la requête "GET ... HTTP/1.1"
     """
-    m = re.search(r'"\s*(\d{3})\s', line)  # cherche un nombre 3 chiffres entouré par espaces après une quote
+    # regex : guillemet suivi d'espace, capture le code HTTP 3 chiffres
+    m = re.search(r'"\s+\d{3}', line)
     if m:
-        return int(m.group(1))
-    # fallback : chercher tout code 200-599 n'importe où
-    m = re.search(r"\b([2-5][0-9]{2})\b", line)
-    if m:
-        return int(m.group(1))
+        # récupérer uniquement le nombre
+        code = int(re.search(r'\d{3}', m.group(0)).group())
+        return code
     return None
 
 # --- Fonction pour analyser les logs ---
