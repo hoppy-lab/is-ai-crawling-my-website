@@ -25,10 +25,16 @@ def extract_status_code(line, sep):
     return None
 
 def check_crawler_hit(line, crawler):
-    ua = crawler['user-agent'].strip().lower()
-    ip = crawler['ip'].strip()
+    """
+    Vérifie si la ligne de log contient le crawler IA
+    - user-agent et ip sont des sous-chaînes provenant des colonnes 2 et 3 du fichier robots-ia.txt
+    - name_bot (colonne 1) sert uniquement pour l'affichage
+    """
+    ua = str(crawler['user-agent']).strip().lower()
+    ip = str(crawler['ip']).strip()
     line_clean = line.strip().lower()
     return ua in line_clean and ip in line_clean
+
 
 if log_file is not None:
     if log_file.size > 5*1024*1024:
