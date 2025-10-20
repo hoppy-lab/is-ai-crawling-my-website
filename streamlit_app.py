@@ -15,7 +15,7 @@ uploaded_file = st.file_uploader(
 
 # --- Fonction pour détecter le séparateur ---
 def detect_separator(sample):
-    for sep in [",", ";", "\t", "|"]:
+    for sep in [",", ";", "\t", "|", " "]:
         if len(sample.split(sep)) > 1:
             return sep
     return None
@@ -36,8 +36,13 @@ IA_GROUPS = {
 def extract_status_code(line, sep):
     parts = line.split(sep)
     for part in parts:
+        part = part.strip()
         if re.match(r"^[2-5][0-9]{2}$", part):
             return int(part)
+    # fallback : chercher un code 3 chiffres n'importe où
+    m = re.search(r"\b([2-5][0-9]{2})\b", line)
+    if m:
+        return int(m.group(1))
     return None
 
 # --- Fonction pour analyser les logs ---
