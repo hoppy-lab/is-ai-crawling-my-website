@@ -2,10 +2,8 @@ import streamlit as st
 import pandas as pd
 import io
 import re
-import requests
 
 st.set_page_config(page_title="Is AI crawling my website?", layout="wide")
-
 st.title("Is AI crawling my website? 🤖")
 
 # ------------------------
@@ -15,12 +13,26 @@ CSV_URL = "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website
 
 @st.cache_data
 def load_reference():
-    df = pd.read_csv(CSV_URL)
-    # On renomme pour plus de clarté
-    df.columns = ["name_bot", "user_agent", "ip"]
-    return df
+    try:
+        df = pd.read_csv(
+            CSV_URL,
+            sep=",",                # forcer la virgule comme séparateur
+            encoding="utf-8",
+            on_bad_lines="skip"     # ignorer les lignes malformées
+        )
+        if df.shape[1] < 3:
+            st.error("Reference CSV format incorrect. Expected 3 columns.")
+            return pd.DataFrame(columns=["name_bot","user_agent","ip"])
+        df.columns = ["name_bot", "user_agent", "ip"]
+        return df
+    except Exception as e:
+        st.error(f"Error loading reference CSV: {e}")
+        return pd.DataFrame(columns=["name_bot","user_agent","ip"])
 
 bots_df = load_reference()
+
+if bots_df.empty:
+    st.stop()
 
 # ------------------------
 # Upload fichier de logs
@@ -55,15 +67,17 @@ if uploaded_file is not None:
         # ------------------------
         # Lecture dataframe logs
         # ------------------------
-        logs_df = pd.read_csv(io.StringIO(raw_content), sep=separator, header=None, dtype=str, engine="python")
+        try:
+            logs_df = pd.read_csv(io.StringIO(raw_content), sep=separator, header=None, dtype=str, engine="python", on_bad_lines="skip")
+        except Exception as e:
+            st.error(f"Error reading log file: {e}")
+            st.stop()
         
-        # Création d'une colonne avec la ligne complète
         logs_df['full_line'] = logs_df.astype(str).agg(separator.join, axis=1)
         
         # ------------------------
         # Extraction du status code
         # ------------------------
-        # On cherche toute série de 3 chiffres entre 200 et 599 dans la ligne
         def extract_status(line):
             match = re.findall(r"\b([2-5][0-9]{2})\b", line)
             return match[0] if match else None
@@ -80,16 +94,15 @@ if uploaded_file is not None:
         
         for _, bot in bots_df.iterrows():
             name = bot["name_bot"]
-            ua = bot["user_agent"].lower()
+            ua = str(bot["user_agent"]).lower()
             ip = str(bot["ip"]).lower()
             
-            # Lignes correspondant au bot
             bot_hits = logs_df[logs_df['full_line'].str.lower().str.contains(ua) & logs_df['full_line'].str.lower().str.contains(ip)]
             
             if bot_hits.empty:
                 status = f"No hit detected by {name}"
             else:
-                # Check status codes
+                # Vérification des status codes
                 valid_hits = bot_hits[bot_hits['status_code'].astype(float).between(200, 499)]
                 if valid_hits.empty:
                     status = "no"
