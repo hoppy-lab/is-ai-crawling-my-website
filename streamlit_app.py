@@ -27,8 +27,15 @@ def extract_status_code(line, sep):
     return None
 
 def check_crawler_hit(line, crawler):
-    """Check if crawler (user-agent + IP) is in line"""
-    return crawler['user-agent'] in line and crawler['ip'] in line
+    """
+    Vérifie si la ligne contient le crawler (user-agent + IP)
+    - user-agent et ip sont les colonnes du fichier robots-ia.txt
+    - name_bot sert uniquement pour l'affichage
+    """
+    ua = crawler['user-agent'].strip().lower()
+    ip = crawler['ip'].strip()
+    line_clean = line.strip().lower()
+    return ua in line_clean and ip in line_clean
 
 if log_file is not None:
     if log_file.size > 5*1024*1024:
@@ -50,7 +57,6 @@ if log_file is not None:
                     st.error("Failed to download robots-ia.txt")
                 else:
                     content = response.text
-                    # Forcer la tabulation comme séparateur
                     robots_df = pd.read_csv(StringIO(content), sep="\t")
                     crawlers = robots_df.to_dict('records')
 
@@ -67,7 +73,7 @@ if log_file is not None:
                                 results[crawler['name_bot']][status_code].append(line)
                                 filtered_lines.append(line)
 
-                    # --- IA groups ---
+                    # --- IA groups pour rapport ---
                     ia_groups = {
                         "Open AI": ["ChatGPT Search Bot", "ChatGPT-User", "ChatGPT-GPTBot"],
                         "Perplexity": ["Perplexity-Bot", "Perplexity-User"],
