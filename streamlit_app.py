@@ -1,24 +1,17 @@
 import streamlit as st
 import pandas as pd
 import re
-from io import StringIO, BytesIO
+from io import StringIO
 import requests
 
 st.set_page_config(page_title="Is AI Crawling My Website?", layout="wide")
 st.title("Is AI Crawling My Website? 🤖")
 
-# --- Téléchargement du fichier de logs ---
+# --- Upload du fichier de logs ---
 uploaded_file = st.file_uploader(
     "Upload your log file (max 5MB, non-compressed)",
     type=["txt", "log", "csv"]
 )
-
-# --- Fonction pour détecter le séparateur ---
-def detect_separator(sample):
-    for sep in [",", ";", "\t", "|", " "]:
-        if len(sample.split(sep)) > 1:
-            return sep
-    return None
 
 # --- Charger le fichier de référence des crawlers ---
 ROBOTS_URL = "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website/e21bed70c4b9cdf9013f9c17da6490c95395f6c6/robots-ia.txt"
@@ -36,31 +29,29 @@ IA_GROUPS = {
 def extract_status_code(line):
     """
     Extrait le code HTTP d'une ligne de log Apache/Nginx.
-    Cherche le nombre à 3 chiffres juste après la requête "GET ... HTTP/1.1"
+    Capture uniquement le nombre à 3 chiffres juste après la requête entre guillemets.
     """
-    # regex : guillemet suivi d'espace, capture le code HTTP 3 chiffres
-    m = re.search(r'"\s+\d{3}', line)
+    # Cherche le code après la requête HTTP "GET ... HTTP/1.1"
+    m = re.search(r'"\s*(?:GET|POST|HEAD|PUT|DELETE|OPTIONS|PATCH) [^"]+ HTTP/[\d.]+"\s+(\d{3})', line, re.IGNORECASE)
     if m:
-        # récupérer uniquement le nombre
-        code = int(re.search(r'\d{3}', m.group(0)).group())
-        return code
+        return int(m.group(1))
     return None
 
 # --- Fonction pour analyser les logs ---
-def analyze_logs(log_lines, robots_df, sep):
+def analyze_logs(log_lines, robots_df):
     hits = []
     summary = {bot: [] for bot in robots_df["name_bot"]}
     
     for line in log_lines:
         line_lower = line.lower()
         for _, bot in robots_df.iterrows():
-            user_agent = bot["user_agent"].lower()
+            user_agent = str(bot["user_agent"]).lower()
             ip = str(bot["ip"]).lower()
             if user_agent in line_lower and ip in line_lower:
-                status_code = extract_status_code(line, sep)
-                summary[bot["name_bot"]].append(status_code)
-                hits.append((bot["name_bot"], line.strip(), status_code))
-    
+                status_code = extract_status_code(line)
+                if status_code is not None:
+                    summary[bot["name_bot"]].append(status_code)
+                    hits.append((bot["name_bot"], line.strip(), status_code))
     return hits, summary
 
 # --- Génération du rapport ---
@@ -87,40 +78,33 @@ if uploaded_file:
         st.error("File exceeds 5 MB limit")
     else:
         content = StringIO(uploaded_file.getvalue().decode("utf-8"))
-        sample_line = content.readline()
-        sep = detect_separator(sample_line)
-        if not sep:
-            st.error("Unable to detect separator automatically")
-        else:
-            st.success(f"Detected separator: '{sep}'")
-            content.seek(0)
-            log_lines = content.readlines()
-            
-            hits, summary = analyze_logs(log_lines, robots_df, sep)
-            
-            # Rapport texte
-            report = generate_report(summary)
-            st.markdown(report)
-            
-            # Tableau récap
-            recap_data = []
-            for bot, codes in summary.items():
-                counts = {}
-                for code in codes:
-                    counts[code] = counts.get(code, 0) + 1
-                recap_data.append({
-                    "name_bot": bot,
-                    "status_code_counts": counts
-                })
-            st.subheader("Summary Table")
-            st.dataframe(pd.DataFrame(recap_data))
-            
-            # Téléchargement des lignes filtrées
-            if hits:
-                filtered_lines = "\n".join([line for _, line, _ in hits])
-                st.download_button(
-                    label="Download filtered logs",
-                    data=filtered_lines,
-                    file_name="filtered_logs.txt",
-                    mime="text/plain"
-                )
+        log_lines = content.readlines()
+        
+        hits, summary = analyze_logs(log_lines, robots_df)
+        
+        # Rapport texte
+        report = generate_report(summary)
+        st.markdown(report)
+        
+        # Tableau récap
+        recap_data = []
+        for bot, codes in summary.items():
+            counts = {}
+            for code in codes:
+                counts[code] = counts.get(code, 0) + 1
+            recap_data.append({
+                "name_bot": bot,
+                "status_code_counts": counts
+            })
+        st.subheader("Summary Table")
+        st.dataframe(pd.DataFrame(recap_data))
+        
+        # Téléchargement des lignes filtrées
+        if hits:
+            filtered_lines = "\n".join([line for _, line, _ in hits])
+            st.download_button(
+                label="Download filtered logs",
+                data=filtered_lines,
+                file_name="filtered_logs.txt",
+                mime="text/plain"
+            )
