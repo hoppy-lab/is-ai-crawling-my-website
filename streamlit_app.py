@@ -16,18 +16,18 @@ def load_reference():
     try:
         df = pd.read_csv(
             CSV_URL,
-            sep=",",                # forcer la virgule comme séparateur
+            sep=";",                # Utilisation du point-virgule comme séparateur
             encoding="utf-8",
-            on_bad_lines="skip"     # ignorer les lignes malformées
+            on_bad_lines="skip"     # Ignorer les lignes malformées
         )
         if df.shape[1] < 3:
-            st.error("Reference CSV format incorrect. Expected 3 columns.")
-            return pd.DataFrame(columns=["name_bot","user_agent","ip"])
+            st.error("Format du CSV de référence incorrect. Attendu 3 colonnes.")
+            return pd.DataFrame(columns=["name_bot", "user_agent", "ip"])
         df.columns = ["name_bot", "user_agent", "ip"]
         return df
     except Exception as e:
-        st.error(f"Error loading reference CSV: {e}")
-        return pd.DataFrame(columns=["name_bot","user_agent","ip"])
+        st.error(f"Erreur lors du chargement du CSV de référence : {e}")
+        return pd.DataFrame(columns=["name_bot", "user_agent", "ip"])
 
 bots_df = load_reference()
 
