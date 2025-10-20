@@ -27,14 +27,13 @@ def extract_status_code(line, sep):
 def check_crawler_hit(line, crawler):
     """
     Vérifie si la ligne de log contient le crawler IA
-    - user-agent et ip sont des sous-chaînes provenant des colonnes 2 et 3 du fichier robots-ia.txt
-    - name_bot (colonne 1) sert uniquement pour l'affichage
+    - user-agent (2ᵉ colonne) et ip (3ᵉ colonne) sont recherchés comme sous-chaînes
+    - name_bot (1ʳᵉ colonne) sert uniquement pour l'affichage
     """
-    ua = str(crawler['user-agent']).strip().lower()
-    ip = str(crawler['ip']).strip()
+    ua = crawler['user-agent'].lower()
+    ip = crawler['ip']
     line_clean = line.strip().lower()
     return ua in line_clean and ip in line_clean
-
 
 if log_file is not None:
     if log_file.size > 5*1024*1024:
@@ -48,6 +47,7 @@ if log_file is not None:
             if sep is None:
                 st.error("Could not detect separator in log file.")
             else:
+                # --- Download and read robots-ia.txt ---
                 robots_url = "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website/e21bed70c4b9cdf9013f9c17da6490c95395f6c6/robots-ia.txt"
                 response = requests.get(robots_url)
                 if response.status_code != 200:
@@ -55,7 +55,15 @@ if log_file is not None:
                 else:
                     content = response.text
                     robots_df = pd.read_csv(StringIO(content), sep="\t")
-                    crawlers = robots_df.to_dict('records')
+
+                    # --- Création liste de crawlers par index de colonnes ---
+                    crawlers = []
+                    for row in robots_df.itertuples(index=False):
+                        crawlers.append({
+                            "name_bot": str(row[0]).strip(),
+                            "user-agent": str(row[1]).strip(),
+                            "ip": str(row[2]).strip()
+                        })
 
                     # --- Analyse logs ---
                     results = defaultdict(lambda: defaultdict(list))
@@ -70,7 +78,7 @@ if log_file is not None:
                                 results[crawler['name_bot']][status_code].append(line)
                                 filtered_lines.append(line)
 
-                    # --- IA groups ---
+                    # --- IA groups pour le rapport ---
                     ia_groups = {
                         "Open AI": ["ChatGPT Search Bot", "ChatGPT-User", "ChatGPT-GPTBot"],
                         "Perplexity": ["Perplexity-Bot", "Perplexity-User"],
@@ -89,7 +97,7 @@ if log_file is not None:
                                 all_ok = all(int(code)//100 in [2,3,4] for code in bot_hits.keys())
                                 st.write(f"- {bot}: {'yes' if all_ok else 'no'}")
 
-                    # --- Tableau récap détaillé par crawler et code ---
+                    # --- Tableau récap détaillé ---
                     st.header("Detailed Summary Table")
                     all_codes = set()
                     for codes in results.values():
@@ -105,7 +113,12 @@ if log_file is not None:
                             row[str(code)] = len(bot_hits.get(code, []))
                         table_rows.append(row)
 
-                    df_summary = pd.DataFrame(table_rows).fillna(0).astype(int)
+                    # Conversion sécurisée en int
+                    df_summary = pd.DataFrame(table_rows).fillna(0)
+                    for col in df_summary.columns:
+                        if col != "name_bot":
+                            df_summary[col] = pd.to_numeric(df_summary[col], errors='coerce').fillna(0).astype(int)
+
                     st.dataframe(df_summary)
 
                     # --- Téléchargement lignes filtrées ---
