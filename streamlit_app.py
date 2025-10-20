@@ -56,15 +56,15 @@ def main():
         df = parse_log(lines)
         st.dataframe(df)
 
-        # Téléchargement CSV
+        # Téléchargement TSV (tabulation)
         if not df.empty:
-            csv_buffer = io.StringIO()
-            df.to_csv(csv_buffer, index=False)
+            tsv_buffer = io.StringIO()
+            df.to_csv(tsv_buffer, index=False, sep="\t")
             st.download_button(
-                label="Télécharger le fichier CSV",
-                data=csv_buffer.getvalue(),
-                file_name="logs_extraits.csv",
-                mime="text/csv"
+                label="Télécharger le fichier TSV",
+                data=tsv_buffer.getvalue(),
+                file_name="logs_extraits.tsv",
+                mime="text/tab-separated-values"
             )
         else:
             st.warning("Aucune donnée exploitable trouvée.")
