@@ -1,84 +1,94 @@
+# is_ai_crawling_my_website.py
+
 import streamlit as st
 import pandas as pd
 import requests
 import json
 
-# --- FONCTION POUR CHARGER LES DONNÉES DES ROBOTS IA ---
+# ----------------------------
+# FONCTION POUR CHARGER LE JSON DES ROBOTS IA
+# ----------------------------
 @st.cache_data
-def load_robots_data(url):
+def load_ai_robots(url):
     """
-    Charge le fichier JSON contenant les robots IA depuis l'URL fournie.
-    Retourne une liste de dictionnaires contenant 'name' et 'user-agent'.
+    Charge le fichier JSON contenant la liste des robots IA.
+    Args:
+        url (str): URL du fichier JSON.
+    Returns:
+        list: Liste de dictionnaires avec 'name' et 'user-agent'.
     """
     response = requests.get(url)
-    robots = response.json()
-    return robots
+    if response.status_code == 200:
+        robots = response.json()
+        return robots
+    else:
+        st.error("Impossible de charger la liste des robots IA.")
+        return []
 
-# --- FONCTION POUR PARCOURIR LES LOGS ET COMPTER LES OCCURRENCES ---
-def analyze_logs(file, robots):
+# ----------------------------
+# FONCTION POUR PARCOURIR LE FICHIER DE LOGS
+# ----------------------------
+def analyze_logs(log_file, ai_robots):
     """
-    Analyse un fichier de logs ligne par ligne et compte combien de fois
-    chaque user-agent IA est présent.
-    
+    Analyse les logs ligne par ligne et compte les occurrences des robots IA.
     Args:
-        file : fichier de logs fourni par l'utilisateur
-        robots : liste des robots IA avec 'name' et 'user-agent'
-    
+        log_file (UploadedFile): Fichier de logs fourni par l'utilisateur.
+        ai_robots (list): Liste des robots IA avec 'name' et 'user-agent'.
     Returns:
-        results : dictionnaire {nom_robot: nombre_d_occurences}
+        dict: Dictionnaire avec le nom du robot IA comme clé et le nombre d'occurrences comme valeur.
     """
-    # Initialisation du dictionnaire de résultats
-    results = {robot['name']: 0 for robot in robots}
+    # Initialisation du compteur pour chaque robot
+    counts = {robot['name']: 0 for robot in ai_robots}
 
-    # Lecture du fichier ligne par ligne
-    for line in file:
-        # Conversion en string (au cas où c'est un byte stream)
-        line_str = line.decode('utf-8', errors='ignore') if isinstance(line, bytes) else line
-        # Vérification de la présence de chaque user-agent dans la ligne
-        for robot in robots:
+    # Lecture ligne par ligne du fichier
+    for line in log_file:
+        # Conversion en string si nécessaire
+        line_str = line.decode('utf-8', errors='ignore')
+        # Vérification pour chaque robot
+        for robot in ai_robots:
             if robot['user-agent'] in line_str:
-                results[robot['name']] += 1
-    return results
+                counts[robot['name']] += 1
+    return counts
 
-# --- INTERFACE STREAMLIT ---
-# Titre de l'application
-st.title("is AI crawling my website")
+# ----------------------------
+# INTERFACE STREAMLIT
+# ----------------------------
+# Titre principal de l'application
+st.title("Is AI crawling my website?")
 
 # Description de l'application
-st.write("""
-This application allows you to check if AI bots are crawling your website.
-Upload a log file (less than 50 MB) and it will scan for known AI crawlers.
+st.markdown("""
+This application helps you detect AI crawlers in your website logs.  
+Upload your log file (max 50 MB), and it will search for known AI bots.
 """)
 
-# Input fichier de logs
-uploaded_file = st.file_uploader(
-    "Upload your log file (max 50 MB, uncompressed)", 
-    type=None  # autorise tous types sauf compressé
-)
-
-# URL du fichier JSON des robots IA
-robots_json_url = "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website/refs/heads/main/robots-ia.json"
+# URL du JSON contenant les robots IA
+JSON_URL = "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website/refs/heads/main/robots-ia.json"
 
 # Chargement des robots IA
-robots = load_robots_data(robots_json_url)
+ai_robots = load_ai_robots(JSON_URL)
 
-# Si un fichier est uploadé
+# Upload du fichier de logs
+uploaded_file = st.file_uploader(
+    "Upload your log file (max 50 MB, uncompressed)", 
+    type=None  # Autorise tous les types de fichiers
+)
+
+# Analyse du fichier après upload
 if uploaded_file is not None:
-    # Limite de 50 MB
     if uploaded_file.size > 50 * 1024 * 1024:
-        st.error("File too large! Maximum allowed size is 50 MB.")
+        st.error("File too large! Please upload a file smaller than 50 MB.")
     else:
-        # Analyse du fichier
-        st.info("Analyzing your log file, please wait...")
-        results = analyze_logs(uploaded_file, robots)
+        with st.spinner("Analyzing logs..."):
+            counts = analyze_logs(uploaded_file, ai_robots)
         
-        # Création d'un DataFrame pour un affichage clair
-        df_results = pd.DataFrame(list(results.items()), columns=['AI Crawler', 'Occurrences'])
-        
-        # Affichage des résultats
-        st.subheader("Detected AI Crawlers")
-        st.dataframe(df_results.sort_values(by='Occurrences', ascending=False))
-        
-        # Message si aucun crawler n'est trouvé
-        if df_results['Occurrences'].sum() == 0:
+        # Création d'un DataFrame pour un rendu clair
+        df_results = pd.DataFrame(list(counts.items()), columns=["AI Robot Name", "Occurrences"])
+        df_results = df_results[df_results["Occurrences"] > 0]  # Filtrer les robots non détectés
+        df_results = df_results.sort_values(by="Occurrences", ascending=False)
+
+        if df_results.empty:
             st.success("No AI crawlers detected in your logs!")
+        else:
+            st.subheader("Detected AI Crawlers")
+            st.table(df_results)
