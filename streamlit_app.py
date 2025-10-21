@@ -1,163 +1,71 @@
+# Import des librairies nécessaires
 import streamlit as st
 import pandas as pd
-import io
-import re
+import requests
+from io import StringIO
 
-st.set_page_config(page_title="Is AI crawling my website?", layout="wide")
-st.title("Is AI crawling my website? 🤖")
+# --- Écran d'accueil ---
+st.title("Is AI crawling my website?")
+st.write(
+    """
+    This application allows you to detect the presence of AI crawlers in your website logs. 
+    Upload a CSV log file and the app will check if known AI bots are crawling your site.
+    """
+)
 
-# ------------------------
-# Chargement du fichier de référence des bots
-# ------------------------
-CSV_URL = "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website/refs/heads/main/robots-ia.csv"
-
-@st.cache_data
-def load_reference():
-    try:
-        df = pd.read_csv(
-            CSV_URL,
-            sep=";",                # Utilisation du point-virgule comme séparateur
-            encoding="utf-8",
-            on_bad_lines="skip"     # Ignorer les lignes malformées
-        )
-        if df.shape[1] < 3:
-            st.error("Format du CSV de référence incorrect. Attendu 3 colonnes.")
-            return pd.DataFrame(columns=["name_bot", "user_agent", "ip"])
-        df.columns = ["name_bot", "user_agent", "ip"]
-        return df
-    except Exception as e:
-        st.error(f"Erreur lors du chargement du CSV de référence : {e}")
-        return pd.DataFrame(columns=["name_bot", "user_agent", "ip"])
-
-bots_df = load_reference()
-
-if bots_df.empty:
-    st.stop()
-
-# ------------------------
-# Upload fichier de logs
-# ------------------------
-st.header("Upload your log file")
+# --- Upload du fichier de logs ---
 uploaded_file = st.file_uploader(
-    "Choose a log file (plain text, max 5MB)",
-    type=["txt", "log", "csv"]
+    "Upload your log file (CSV, max 50 MB)", 
+    type="csv"
 )
 
 if uploaded_file is not None:
-    if uploaded_file.size > 5 * 1024 * 1024:
-        st.error("File is too large (max 5MB).")
+    # Vérifier la taille du fichier
+    if uploaded_file.size > 50 * 1024 * 1024:
+        st.error("The file is too large. Please upload a file smaller than 50 MB.")
     else:
-        # Lecture du contenu
-        raw_content = uploaded_file.read().decode("utf-8", errors="ignore")
-        st.success(f"File uploaded: {uploaded_file.name}, size: {uploaded_file.size} bytes")
+        # Lecture du fichier CSV utilisateur
+        # On lit ligne par ligne pour ne pas surcharger la mémoire
+        file_content = StringIO(uploaded_file.getvalue().decode("utf-8"))
+        log_lines = file_content.readlines()
         
-        # ------------------------
-        # Détection du séparateur
-        # ------------------------
-        sample_lines = raw_content.splitlines()[:10]
-        possible_separators = [",", ";", "\t", "|", " "]
-        sep_scores = {}
-        for sep in possible_separators:
-            counts = [len(line.split(sep)) for line in sample_lines]
-            sep_scores[sep] = max(counts) - min(counts)
-        # On choisit celui avec le moins de variance et au moins 2 colonnes
-        separator = min([k for k, v in sep_scores.items() if v < 3], key=lambda x: sep_scores[x], default=" ")
-        st.info(f"Detected separator: '{separator}'")
+        st.success(f"File loaded successfully! Total lines: {len(log_lines)}")
 
-        # ------------------------
-        # Lecture dataframe logs
-        # ------------------------
-        try:
-            logs_df = pd.read_csv(io.StringIO(raw_content), sep=separator, header=None, dtype=str, engine="python", on_bad_lines="skip")
-        except Exception as e:
-            st.error(f"Error reading log file: {e}")
-            st.stop()
-        
-        logs_df['full_line'] = logs_df.astype(str).agg(separator.join, axis=1)
-        
-        # ------------------------
-        # Extraction du status code
-        # ------------------------
-        def extract_status(line):
-            match = re.findall(r"\b([2-5][0-9]{2})\b", line)
-            return match[0] if match else None
-
-        logs_df['status_code'] = logs_df['full_line'].apply(extract_status)
-        
-        # ------------------------
-        # Analyse des bots
-        # ------------------------
-        st.header("AI crawling analysis")
-        
-        report = {}
-        selected_lines = pd.DataFrame(columns=logs_df.columns)
-        
-        for _, bot in bots_df.iterrows():
-            name = bot["name_bot"]
-            ua = str(bot["user_agent"]).lower()
-            ip = str(bot["ip"]).lower()
-            
-            bot_hits = logs_df[logs_df['full_line'].str.lower().str.contains(ua) & logs_df['full_line'].str.lower().str.contains(ip)]
-            
-            if bot_hits.empty:
-                status = f"No hit detected by {name}"
-            else:
-                # Vérification des status codes
-                valid_hits = bot_hits[bot_hits['status_code'].astype(float).between(200, 499)]
-                if valid_hits.empty:
-                    status = "no"
-                else:
-                    status = "yes"
-                    selected_lines = pd.concat([selected_lines, bot_hits])
-            
-            report[name] = {
-                "status": status,
-                "hits": bot_hits
-            }
-        
-        # ------------------------
-        # Affichage par catégorie
-        # ------------------------
-        categories = {
-            "Open AI": ["ChatGPT Search Bot", "ChatGPT-User", "ChatGPT-GPTBot"],
-            "Perplexity": ["Perplexity-Bot", "Perplexity-User"],
-            "Google": ["Google-Gemini"],
-            "Mistral": ["MistralAI-User"]
-        }
-        
-        for cat, bots in categories.items():
-            st.subheader(f"Is {cat} crawling my website?")
-            for b in bots:
-                if b in report:
-                    st.write(f"- {b} : {report[b]['status']}")
-                else:
-                    st.write(f"- {b} : Not found in reference file")
-        
-        # ------------------------
-        # Tableau récapitulatif
-        # ------------------------
-        st.header("Summary table per bot and status code")
-        summary_data = []
-        for name, info in report.items():
-            hits = info["hits"]
-            if hits.empty:
-                summary_data.append({"name_bot": name, "status_code": "No hit", "count": 0})
-            else:
-                counts = hits['status_code'].value_counts()
-                for code, c in counts.items():
-                    summary_data.append({"name_bot": name, "status_code": code, "count": c})
-        
-        summary_df = pd.DataFrame(summary_data)
-        st.dataframe(summary_df)
-        
-        # ------------------------
-        # Téléchargement du fichier filtré
-        # ------------------------
-        if not selected_lines.empty:
-            csv_filtered = selected_lines.to_csv(index=False, sep=separator)
-            st.download_button(
-                label="Download filtered log lines",
-                data=csv_filtered,
-                file_name="filtered_logs.csv",
-                mime="text/csv"
+        # --- Chargement du fichier de référence robots-ia.csv ---
+        robots_url = "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website/refs/heads/main/robots-ia.csv"
+        response = requests.get(robots_url)
+        if response.status_code == 200:
+            robots_data = pd.read_csv(
+                StringIO(response.text), 
+                sep=";", 
+                header=None,  # pas d'en-tête
+                names=["name", "user_agent_fragment", "ip_prefix"]
             )
+            st.write("List of AI crawlers known:")
+            st.dataframe(robots_data["name"])  # Affiche seulement les noms pour l’instant
+
+            # --- Comptage des User-Agent dans le fichier log ---
+            st.write("Counting occurrences of each AI crawler in your logs...")
+            
+            # Dictionnaire pour stocker les résultats
+            crawler_counts = {}
+
+            # Parcours de chaque robot
+            for index, row in robots_data.iterrows():
+                crawler_name = row["name"]
+                user_agent_fragment = str(row["user_agent_fragment"])
+                count = 0
+
+                # Parcours des lignes de log
+                for line in log_lines:
+                    if user_agent_fragment in line:
+                        count += 1
+                
+                crawler_counts[crawler_name] = count
+            
+            # --- Affichage des résultats ---
+            result_df = pd.DataFrame(list(crawler_counts.items()), columns=["AI Crawler", "Occurrences"])
+            st.write("Number of occurrences of each AI crawler in your log file:")
+            st.dataframe(result_df)
+        else:
+            st.error("Failed to fetch AI crawlers reference file.")
