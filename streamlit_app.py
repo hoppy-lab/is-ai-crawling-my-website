@@ -41,7 +41,12 @@ def load_ai_robots(url):
 
 # Chargement des robots
 ai_robots = load_ai_robots(ROBOTS_JSON_URL)
-st.write(ai_robots)
+
+
+# Affichage détaillé de chaque entrée pour debug
+st.subheader("Debug: Entries in ai_robots")
+for i, robot in enumerate(ai_robots):
+    st.write(f"Entry {i}: {robot} (type: {type(robot)})")
 
 # -------------------------------------------------------------
 # INTERFACE POUR UPLOAD DU FICHIER DE LOG
