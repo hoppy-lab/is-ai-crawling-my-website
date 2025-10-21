@@ -1,17 +1,15 @@
 import streamlit as st
 import pandas as pd
-import requests
 
 # -------------------------------------------------------------
 # Titre et description de l'application
 # -------------------------------------------------------------
 st.set_page_config(page_title="Is AI Crawling My Website?", page_icon="🤖", layout="centered")
-
 st.title("Is AI Crawling My Website?")
 st.write("This application detects the presence of AI bots in your website logs by analyzing User-Agent strings.")
 
 # -------------------------------------------------------------
-# Téléchargement du fichier de logs par l'utilisateur
+# Téléchargement du fichier de logs
 # -------------------------------------------------------------
 uploaded_file = st.file_uploader(
     "Upload your log file (less than 50 MB, any text format, uncompressed)",
@@ -26,11 +24,16 @@ robots_url = "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-webs
 @st.cache_data
 def load_robots(url):
     """
-    Cette fonction charge le fichier CSV contenant les robots IA depuis GitHub.
-    Il n'a pas d'en-tête, séparateur tabulation.
-    Retourne un DataFrame pandas avec trois colonnes : name, user_agent_fragment, ip_start
+    Charge le fichier CSV depuis GitHub.
+    Le séparateur est une tabulation, les chaînes entre guillemets sont conservées correctement.
     """
-    df = pd.read_csv(url, sep="\t", header=None, names=["name", "user_agent_fragment", "ip_start"])
+    df = pd.read_csv(
+        url,
+        sep="\t",        # Tabulation
+        header=None,     # Pas d'en-tête dans le CSV
+        names=["name", "user_agent", "ip_start"],  # Nom des colonnes
+        quotechar='"'    # Gère les guillemets autour du User-Agent
+    )
     return df
 
 robots_df = load_robots(robots_url)
@@ -50,20 +53,15 @@ if uploaded_file is not None:
     
     # Lecture ligne par ligne du fichier de logs
     for line in uploaded_file:
-        # Convertir en string si c'est en bytes
         if isinstance(line, bytes):
             line = line.decode("utf-8", errors="ignore")
-        # Vérifier chaque robot IA
+        # Vérification de chaque User-Agent complet
         for idx, row in robots_df.iterrows():
-            if row["user_agent_fragment"] in line:
+            if row["user_agent"] in line:  # Utilisation du User-Agent complet
                 bot_counts[row["name"]] += 1
     
-    # -------------------------------------------------------------
     # Affichage des résultats
-    # -------------------------------------------------------------
     st.subheader("AI crawler occurrences in your log file")
-    
     results_df = pd.DataFrame(list(bot_counts.items()), columns=["AI Crawler", "Occurrences"])
     st.dataframe(results_df.sort_values(by="Occurrences", ascending=False))
-    
     st.success("Analysis complete!")
