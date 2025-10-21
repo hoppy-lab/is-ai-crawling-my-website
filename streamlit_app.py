@@ -1,240 +1,242 @@
-# Streamlit app: "is AI crawlin my ebsitewebsite"
-# Purpose: allow a user to upload a single-day web server log (any textual format, <50MB, not compressed)
-# The app downloads a base list of known AI crawlers (name, user-agent fragment, IP prefix)
-# and scans the uploaded log line-by-line to count occurrences of user-agent fragments.
-
-# --------------------------------------------------------------------------------
-# Requirements: streamlit, pandas, requests
-# Install with: pip install streamlit pandas requests
-# Run with: streamlit run streamlit_is_ai_crawling_my_website.py
-# --------------------------------------------------------------------------------
+# app.py
+"""
+Streamlit app: "Is AI crawling my website?"
+This app:
+- télécharge une liste de robots IA (robots-ia.txt) (3 colonnes tabulées: name, user-agent fragment, IP prefix)
+- permet à l'utilisateur d'uploader un fichier de logs (< 50 MB, non compressé)
+- parcourt le fichier de logs ligne par ligne et compte combien de lignes contiennent chaque fragment de user-agent
+- affiche un tableau récapitulatif (robot name + count)
+Très commenté pour faciliter les adaptations.
+"""
 
 import io
-import re
 import requests
-import pandas as pd
 import streamlit as st
+import pandas as pd
 from typing import List, Tuple
 
-# ---------------------- Configuration constants ----------------------
-# Remote file containing the AI crawler database (3 columns: name, ua_fragment, ip_prefix)
-ROBOTS_IA_URL = (
-    "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website/refs/heads/main/robots-ia.txt"
+# ---------------------------------------------------------------------
+# Config UI de la page Streamlit
+# ---------------------------------------------------------------------
+st.set_page_config(page_title="is AI crawlin my ebsitewebsite", layout="wide")
+
+# Titre EXACT demandé (en anglais, tel quel)
+st.title("is AI crawlin my ebsitewebsite")
+
+# Description (en français) sous le titre
+st.write(
+    "Détecte la présence de bots AI dans vos logs. "
+    "Uploadez un échantillon de vos logs (une journée par exemple) et l'application recherchera "
+    "les user-agents présents dans notre base de robots IA."
 )
-# Maximum allowed upload size in bytes (50 MB)
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024
-# Compressed file extensions that we explicitly forbid
-FORBIDDEN_COMPRESSED_EXTS = ('.zip', '.gz', '.bz2', '.xz', '.7z', '.rar', '.tgz')
 
-# ---------------------- Helper functions ----------------------
+# ---------------------------------------------------------------------
+# Constantes
+# ---------------------------------------------------------------------
+# URL du fichier de base fourni par l'utilisateur (raw GitHub)
+ROBOTS_IA_URL = "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website/refs/heads/main/robots-ia.txt"
 
-def download_robots_db(url: str) -> List[Tuple[str, str, str]]:
+# Taille maximale autorisée (50 MB)
+MAX_FILE_BYTES = 50 * 1024 * 1024
+
+# Extensions compressées à refuser (liste non exhaustive)
+COMPRESSED_EXTS = {".zip", ".gz", ".bz2", ".7z", ".rar", ".tar", ".xz"}
+
+# ---------------------------------------------------------------------
+# Utilitaires
+# ---------------------------------------------------------------------
+@st.cache_data(show_spinner=False)
+def fetch_robots_list(url: str) -> List[Tuple[str, str, str]]:
     """
-    Télécharge le fichier robots-ia.txt depuis l'URL fournie et le parse.
-    Le fichier est attendu sans en-tête, tabulé, 3 colonnes:
-      1) robot_name
-      2) user-agent fragment (substring à rechercher)
-      3) ip prefix (début d'IP, optionnelement utilisé plus tard)
-
-    Retourne une liste de tuples (robot_name, ua_fragment, ip_prefix).
-    En cas d'erreur, remonte une exception.
+    Télécharge et parse le fichier robots-ia.txt depuis l'URL.
+    Retourne une liste de tuples: (robot_name, ua_fragment, ip_prefix)
+    - On suppose 3 colonnes séparées par tabulations, sans en-tête.
+    - Les lignes vides sont ignorées.
+    - On strip() les champs autour.
+    Caching pour éviter de re-télécharger à chaque interaction.
     """
     resp = requests.get(url, timeout=15)
     resp.raise_for_status()
-    text = resp.text
-
+    content = resp.text.splitlines()
     robots = []
-    # chaque ligne doit être tab-séparée en 3 champs
-    for i, raw_line in enumerate(text.splitlines()):
-        line = raw_line.strip()
-        if not line:
+    for raw in content:
+        if not raw.strip():
             continue
-        parts = line.split('\t')
-        if len(parts) < 2:
-            # ignore malformed lines mais continue
-            continue
-        # some lines might omit ip_prefix, on s'assure d'avoir 3 colonnes logiques
-        name = parts[0].strip()
+        parts = raw.split("\t")
+        # Si la ligne n'a pas exactement 3 colonnes, on essaye de s'adapter:
+        if len(parts) < 3:
+            # compléter par des chaînes vides si nécessaire
+            parts = (parts + [""] * 3)[:3]
+        robot_name = parts[0].strip()
         ua_fragment = parts[1].strip()
-        ip_prefix = parts[2].strip() if len(parts) >= 3 else ''
-        robots.append((name, ua_fragment, ip_prefix))
+        ip_prefix = parts[2].strip()
+        robots.append((robot_name, ua_fragment, ip_prefix))
     return robots
 
-
-def is_forbidden_filename(filename: str) -> bool:
-    """Vérifie si le nom de fichier semble être compressé (interdit)."""
+def is_compressed_filename(filename: str) -> bool:
+    """
+    Vérifie si le nom de fichier se termine par une extension compressée connue.
+    """
     if not filename:
         return False
-    lowered = filename.lower()
-    return any(lowered.endswith(ext) for ext in FORBIDDEN_COMPRESSED_EXTS)
+    lower = filename.lower()
+    for ext in COMPRESSED_EXTS:
+        if lower.endswith(ext):
+            return True
+    return False
 
+# ---------------------------------------------------------------------
+# Chargement de la base de robots IA
+# ---------------------------------------------------------------------
+with st.spinner("Fetching known AI crawlers list..."):
+    try:
+        robots = fetch_robots_list(ROBOTS_IA_URL)
+    except Exception as e:
+        st.error(f"Impossible de télécharger la liste des robots IA depuis {ROBOTS_IA_URL} : {e}")
+        st.stop()
 
-def iterate_lines(file_like: io.BytesIO, encoding_candidates=('utf-8', 'latin-1')):
-    """
-    Itère les lignes d'un objet bytes (BytesIO) sans charger tout le fichier en mémoire.
-    Tente d'abord un décodage en utf-8, sinon latin-1.
-    Rend chaque ligne sous forme de chaîne (str) sans le caractère final de saut de ligne.
-    """
-    # Tentative de lecture 'streaming' depuis BytesIO
-    raw = file_like.getvalue()
-    for enc in encoding_candidates:
-        try:
-            text = raw.decode(enc)
-            # successful decode -> yield lines
-            for line in text.splitlines():
-                yield line
-            return
-        except Exception:
-            # essaie le prochain encodage
-            continue
-    # Si aucun encodage n'a fonctionné, on décode en 'utf-8' en ignorant les erreurs
-    text = raw.decode('utf-8', errors='ignore')
-    for line in text.splitlines():
-        yield line
-
-
-# ---------------------- Streamlit UI & Logic ----------------------
-
-# Metadonnées et titre (l'utilisateur a demandé un titre anglais très spécifique)
-st.set_page_config(page_title='is AI crawlin my ebsitewebsite', layout='wide')
-
-# Titre principal (doit afficher exactement la chaîne demandée)
-st.title('is AI crawlin my ebsitewebsite')
-
-# Description en dessous (en français, comme demandé)
-st.markdown(
-    'Détecte la présence de bots AI dans vos logs — téléversez un échantillon de logs (une journée par exemple) et l\'application cherchera les user-agents connus listés dans la base.'
-)
-
-# Téléversement de fichier: n'importe quel format sauf compressé, et <50MB
-uploaded = st.file_uploader(
-    label='Upload your log file (any text format, <50 MB, not compressed)',
-    type=None,  # autorise tous les types de fichiers ; on filtrera côté code
-    accept_multiple_files=False,
-)
-
-# Téléchargement et parsing de la base de robots IA
-st.sidebar.header('Settings & info')
-st.sidebar.markdown('La base de robots IA sera téléchargée depuis le dépôt GitHub indiqué.')
-
-try:
-    robots_db = download_robots_db(ROBOTS_IA_URL)
-    st.sidebar.success(f'Loaded {len(robots_db)} AI crawler entries from remote DB.')
-except Exception as e:
-    st.sidebar.error('Impossible de télécharger la base de robots IA. Vérifiez votre connexion.')
-    robots_db = []
-
-# Afficher la table des robots connus (nom + user-agent fragment + ip prefix)
-if robots_db:
-    df_robots = pd.DataFrame(robots_db, columns=['robot_name', 'ua_fragment', 'ip_prefix'])
-    with st.expander('Preview of known AI crawlers (from remote DB)'):
-        st.dataframe(df_robots)
-
-# Si aucun fichier téléversé -> guide d'utilisation
-if uploaded is None:
-    st.info('Téléversez un fichier de logs (texte), par ex. access.log. Taille maximale: 50 MB. Formats compressés interdits.')
-    st.stop()
-
-# Vérifications sur le fichier
-# 1) taille
-# st.file_uploader retourne un UploadedFile qui a .size et .name
-file_size = uploaded.size if hasattr(uploaded, 'size') else None
-file_name = uploaded.name if hasattr(uploaded, 'name') else ''
-
-if file_size is not None and file_size > MAX_UPLOAD_BYTES:
-    st.error(f'Le fichier dépasse la taille maximale autorisée de 50 MB (taille: {file_size} bytes).')
-    st.stop()
-
-# 2) extension (compressés interdits)
-if is_forbidden_filename(file_name):
-    st.error('Les fichiers compressés (zip, gz, bz2, xz, 7z, rar, tgz) sont interdits. Décompressez votre fichier puis téléversez le fichier texte résultant.')
-    st.stop()
-
-# Convertir le contenu téléversé en BytesIO pour itération
-file_bytes = io.BytesIO(uploaded.getvalue())
-
-# Préparer le compteur initial pour chaque robot
-# On utilisera une recherche insensible à la casse sur la totalité de la ligne pour trouver le fragment du user-agent
-counters = {name: 0 for (name, _, _) in robots_db}
-
-# Pour l'utilisateur, afficher une option de prévisualisation et un bouton pour lancer l'analyse
-with st.expander('Options d\'analyse'):
-    preview_n = st.number_input('Preview first N lines of the uploaded file (0 = none)', min_value=0, max_value=10000, value=0, step=10)
-    run_scan = st.button('Run scan')
-
-# Prévisualisation si demandée
-if preview_n > 0:
-    preview_lines = []
-    for i, line in enumerate(iterate_lines(file_bytes)):
-        if i >= preview_n:
-            break
-        preview_lines.append(line)
-    st.subheader('Preview')
-    st.text('\n'.join(preview_lines))
-    # Rewind file-like object for the real scan
-    file_bytes.seek(0)
-
-# Exécuter le scan si l'utilisateur clique
-if not run_scan:
-    st.info('Cliquez sur "Run scan" pour analyser le fichier de logs et compter les occurrences de user-agent.')
-    st.stop()
-
-# Réinitialiser le pointeur
-file_bytes.seek(0)
-
-# Pré-calc: on compile les expressions pour de meilleures performances
-# On va chercher le substring du user-agent en insensible à la casse; on échappera le fragment pour sécurité regex
-compiled_patterns = []
-for name, ua_fragment, ip_prefix in robots_db:
-    if not ua_fragment:
-        # sauter si fragment vide
-        continue
-    # Escape pour éviter que des caractères spéciaux dans le fragment perturbent la regex
-    esc = re.escape(ua_fragment)
-    # pattern simple: chercher le fragment n'importe où, insensible à la casse
-    pat = re.compile(esc, flags=re.IGNORECASE)
-    compiled_patterns.append((name, pat))
-
-# Scan ligne par ligne
-line_count = 0
-matched_line_count = 0
-for line in iterate_lines(file_bytes):
-    line_count += 1
-    # pour chaque pattern on teste s'il apparaît dans la ligne
-    any_match = False
-    for name, pat in compiled_patterns:
-        if pat.search(line):
-            counters[name] += 1
-            any_match = True
-    if any_match:
-        matched_line_count += 1
-
-# Résultats: préparer un DataFrame trié par nombre décroissant
-results = pd.DataFrame([
-    {'robot_name': name, 'count_user_agent_matches': count}
-    for name, count in counters.items()
-])
-results = results.sort_values(by='count_user_agent_matches', ascending=False).reset_index(drop=True)
-
-# Afficher résumé
-st.subheader('Scan results')
-st.markdown(f'- Total lines scanned: **{line_count}**')
-st.markdown(f'- Lines with at least one UA match: **{matched_line_count}**')
-
-# Afficher tableau de résultats (seulement les robots avec >0 occurrences, et un onglet pour tout)
-positive = results[results['count_user_agent_matches'] > 0]
-if not positive.empty:
-    st.success(f'Found {len(positive)} AI crawler(s) in your logs.')
-    st.dataframe(positive)
+# Affichage compact de la liste (nom + fragment d'UA) pour information
+if robots:
+    st.markdown("**Robots IA connus (extrait de la base)** :")
+    sample_df = pd.DataFrame(robots, columns=["robot_name", "ua_fragment", "ip_prefix"])
+    # N'affiche que les colonnes utiles pour l'aperçu
+    st.dataframe(sample_df[["robot_name", "ua_fragment", "ip_prefix"]], use_container_width=True)
 else:
-    st.warning('Aucun user-agent connu de la base n\'a été trouvé dans le fichier de logs.')
+    st.warning("La liste des robots IA est vide.")
 
-with st.expander('All known robots (full list and counts)'):
-    st.dataframe(results)
+st.markdown("---")
 
-# Option: export CSV des résultats
-csv = results.to_csv(index=False)
-st.download_button('Download results as CSV', data=csv, file_name='ai_crawlers_counts.csv', mime='text/csv')
+# ---------------------------------------------------------------------
+# Interface d'upload de fichier
+# ---------------------------------------------------------------------
+st.header("Upload your log file (one day sample)")
 
-# Fin de l'application
-st.caption('Note: this tool searches user-agent fragments as provided in the remote list. False positives/negatives are possible depending on log format and how user-agents are logged.')
+uploaded = st.file_uploader(
+    "Sélectionnez un fichier de log (non compressé). Taille limite: 50 MB.",
+    type=None,  # accepter tout type (mais nous filtrons les compressés par extension)
+    accept_multiple_files=False
+)
+
+if uploaded is None:
+    st.info("Aucun fichier uploadé — uploadez un fichier pour lancer l'analyse.")
+    st.stop()
+
+# Vérifications basiques
+# 1) taille
+if uploaded.size > MAX_FILE_BYTES:
+    st.error(f"Fichier trop volumineux ({uploaded.size} bytes). Limite: {MAX_FILE_BYTES} bytes (50 MB).")
+    st.stop()
+
+# 2) extension compressée interdite
+if is_compressed_filename(uploaded.name):
+    st.error("Les fichiers compressés (.zip, .gz, .tar, etc.) ne sont pas acceptés. "
+             "Merci de fournir le fichier de logs non compressé.")
+    st.stop()
+
+# ---------------------------------------------------------------------
+# Comptage: pour chaque robot, on compte les lignes contenant ua_fragment
+# ---------------------------------------------------------------------
+st.info("Analyse en cours — lecture du fichier ligne par ligne (mémoire optimisée).")
+
+# Préparer la structure de comptage
+# dictionnaire: robot_name -> count
+counts = {robot_name: 0 for robot_name, _, _ in robots}
+
+# Préparer liste de fragments et mapping pour recherche rapide
+# On utilisera une recherche case-insensitive
+fragments = []
+fragment_to_robot = {}  # fragment -> list of robot_names (au cas où plusieurs robots ont même fragment)
+for robot_name, ua_fragment, ip_prefix in robots:
+    frag = ua_fragment
+    if frag == "":
+        continue  # sauter les fragments vides (inutile à rechercher)
+    frag_lower = frag.lower()
+    fragments.append(frag_lower)
+    fragment_to_robot.setdefault(frag_lower, []).append(robot_name)
+
+# Lecture ligne par ligne: uploaded est un UploadedFile (io.BytesIO-like)
+# On transforme en TextIOWrapper pour itérer en texte (utf-8 fallback)
+try:
+    text_stream = io.TextIOWrapper(uploaded, encoding="utf-8", errors="replace")
+except Exception:
+    # fallback si l'objet ne peut pas être wrapé directement
+    uploaded.seek(0)
+    raw_bytes = uploaded.read()
+    text_stream = io.TextIOWrapper(io.BytesIO(raw_bytes), encoding="utf-8", errors="replace")
+
+total_lines = 0
+total_matches = 0
+
+# IMPORTANT: si le nombre de fragments est élevé, la boucle imbriquée peut être coûteuse.
+# Pour un usage d'échantillon journalier cela reste raisonnable.
+for raw_line in text_stream:
+    total_lines += 1
+    line_lower = raw_line.lower()
+    # Vérifier la présence de chaque fragment dans la ligne (sous-chaîne)
+    for frag_lower in fragments:
+        if frag_lower in line_lower:
+            # incrémente une fois pour chaque robot associé à ce fragment
+            for rname in fragment_to_robot.get(frag_lower, []):
+                counts[rname] += 1
+            total_matches += 1
+            # NOTE: on ne "break" pas ici car une ligne peut contenir plusieurs fragments (plusieurs bots)
+            # Si tu veux compter une ligne au maximum une seule fois, ajouter un break ici.
+# Remettre le curseur du fichier (au cas où)
+try:
+    uploaded.seek(0)
+except Exception:
+    pass
+
+# ---------------------------------------------------------------------
+# Résultats: DataFrame et affichage
+# ---------------------------------------------------------------------
+# Construire DataFrame trié par compte décroissant
+results = pd.DataFrame(
+    [
+        {"robot_name": rn, "ua_fragment": ua, "ip_prefix": ip, "count": counts.get(rn, 0)}
+        for rn, ua, ip in robots
+    ]
+)
+
+# Trier par nombre de détections
+results = results.sort_values(by="count", ascending=False).reset_index(drop=True)
+
+st.header("Résultats")
+st.markdown(f"- Lignes analysées : **{total_lines}**")
+st.markdown(f"- Occurrences totales détectées (toutes lignes confondues) : **{total_matches}**")
+
+# Affiche seulement robots avec count > 0 en premier, mais propose le tableau complet
+if results["count"].sum() == 0:
+    st.warning("Aucune occurrence de fragments de user-agent IA trouvée dans ce fichier de logs.")
+else:
+    st.success(f"Robots IA détectés : {int((results['count'] > 0).sum())} robots ont au moins 1 occurrence.")
+
+# Affichage du tableau complet
+st.dataframe(results, use_container_width=True)
+
+# Option : afficher uniquement les robots trouvés
+st.markdown("#### Robots détectés (count > 0)")
+detected = results[results["count"] > 0]
+if not detected.empty:
+    st.dataframe(detected, use_container_width=True)
+else:
+    st.markdown("_Aucun robot détecté._")
+
+# ---------------------------------------------------------------------
+# Conseils et prochaines étapes (suggestions)
+# ---------------------------------------------------------------------
+st.markdown("---")
+st.subheader("Next steps / suggestions")
+st.markdown(
+    "- Vérifier les adresses IP correspondantes (colonne `ip_prefix`) pour confirmer l'appartenance des crawlers.\n"
+    "- Ajouter une recherche par préfixe IP (si tu veux aussi filtrer par IP dans le log).\n"
+    "- Si ton log est au format commun (combined log / nginx), on peut extraire la colonne User-Agent explicitement pour réduire les faux positifs.\n"
+    "- Pour de très gros fichiers, envisager un passage en streaming sur disque ou un script en ligne de commande multi-thread."
+)
+
+# ---------------------------------------------------------------------
+# Footer: lien vers la base des robots utilisée
+# ---------------------------------------------------------------------
+st.markdown("---")
+st.caption("Base utilisée pour les fragments de user-agent et préfixes IP :")
+st.write(ROBOTS_IA_URL)
