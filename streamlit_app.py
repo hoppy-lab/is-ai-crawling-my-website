@@ -31,8 +31,14 @@ def load_ai_robots(url):
     response = requests.get(url)
     response.raise_for_status()  # Pour s'assurer que le téléchargement s'est bien passé
     data = response.json()
-    return data
+    
+    # Vérification si le JSON contient un champ "robots"
+    if isinstance(data, dict) and "robots" in data:
+        return data["robots"]
+    else:
+        return data  # sinon on suppose que c'est déjà une liste de robots
 
+# Chargement des robots
 ai_robots = load_ai_robots(ROBOTS_JSON_URL)
 
 # -------------------------------------------------------------
