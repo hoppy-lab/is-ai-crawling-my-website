@@ -1,44 +1,72 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
+import json
 import requests
-import io
 
-# --- Titre et description de l'application ---
-st.title("is AI crawlin my ebsitewebsite")
-st.write("This application detects the presence of AI bots in your website logs.")
+# -------------------------------------------------------------
+# PAGE D'ACCUEIL
+# -------------------------------------------------------------
+st.set_page_config(page_title="Is AI Crawling My Website?", layout="wide")
 
-# --- Interface de chargement du fichier de logs ---
-# L'utilisateur peut uploader un fichier de moins de 50 Mo, non compressé
+# Titre de l'application
+st.title("Is AI Crawling My Website?")
+
+# Description
+st.markdown("""
+This application helps you detect the presence of AI crawlers in your website logs.
+Upload a log file, and the app will search for known AI crawler user-agents.
+""")
+
+# -------------------------------------------------------------
+# CHARGEMENT DU FICHIER JSON DES ROBOTS IA
+# -------------------------------------------------------------
+ROBOTS_JSON_URL = "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website/refs/heads/main/robots-ia.json"
+
+@st.cache_data
+def load_ai_robots(url):
+    """
+    Charge la liste des robots IA depuis un fichier JSON en ligne.
+    """
+    response = requests.get(url)
+    response.raise_for_status()  # Pour s'assurer que le téléchargement s'est bien passé
+    data = response.json()
+    return data
+
+ai_robots = load_ai_robots(ROBOTS_JSON_URL)
+
+# -------------------------------------------------------------
+# INTERFACE POUR UPLOAD DU FICHIER DE LOG
+# -------------------------------------------------------------
 uploaded_file = st.file_uploader(
-    "Upload your log file (max 50MB, any format except compressed)", type=None
+    "Upload your website log file (max 50 MB, uncompressed)",
+    type=None  # n'importe quel format
 )
 
-# --- Si un fichier est uploadé ---
-if uploaded_file:
-    # URL du fichier de référence contenant les infos sur les crawlers IA
-    url = "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website/refs/heads/main/robots-ia.txt"
-    response = requests.get(url)
-
-    # Vérifie que le fichier a bien été récupéré
-    if response.status_code == 200:
-        # Lecture du fichier de référence dans un DataFrame pandas
-        reference_data = pd.read_csv(io.StringIO(response.text), sep='\t', header=None)
-        reference_data.columns = ['Crawler Name', 'User-Agent Fragment', 'IP Prefix']
-
-        # Initialisation d'un dictionnaire pour compter les occurrences
-        crawler_counts = {name: 0 for name in reference_data['Crawler Name']}
-
-        # Lecture du fichier de logs ligne par ligne
-        for line in uploaded_file:
-            decoded_line = line.decode('utf-8', errors='ignore')  # Décodage en UTF-8
-            for index, row in reference_data.iterrows():
-                # Si le fragment de User-Agent est trouvé dans la ligne
-                if row['User-Agent Fragment'] in decoded_line:
-                    crawler_counts[row['Crawler Name']] += 1
-
-        # --- Affichage des résultats ---
-        st.subheader("Detected AI Crawlers")
-        for crawler, count in crawler_counts.items():
-            st.write(f"{crawler}: {count} occurrences")
+# Vérifie que l'utilisateur a bien uploadé un fichier
+if uploaded_file is not None:
+    # Limite de 50 Mo
+    if uploaded_file.size > 50 * 1024 * 1024:
+        st.error("File is too large! Maximum allowed size is 50 MB.")
     else:
-        st.error("Failed to load reference data from GitHub.")
+        # On parcourt le fichier ligne par ligne
+        counts = {robot['name']: 0 for robot in ai_robots}  # Initialisation du compteur
+        
+        # Décodage du fichier selon l'encodage le plus probable
+        try:
+            lines = uploaded_file.read().decode('utf-8').splitlines()
+        except UnicodeDecodeError:
+            lines = uploaded_file.read().decode('latin-1').splitlines()
+        
+        # Parcours de chaque ligne et recherche des user-agents
+        for line in lines:
+            for robot in ai_robots:
+                if robot['user-agent'] in line:
+                    counts[robot['name']] += 1
+        
+        # Transformation en DataFrame pour affichage
+        df_counts = pd.DataFrame(list(counts.items()), columns=["AI Crawler", "Occurrences"])
+        
+        # Affichage du tableau
+        st.subheader("AI Crawlers Found in Your Logs")
+        st.dataframe(df_counts)
