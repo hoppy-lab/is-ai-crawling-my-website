@@ -1,4 +1,3 @@
-[
     {
       "name": "ChatGPT-SearchBot",
       "user-agent": "OAI-SearchBot/1.0; +https://openai.com/searchbot"
@@ -27,4 +26,3 @@
       "name": "Mistral-User",
       "user-agent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; MistralAI-User/1.0; +https://docs.mistral.ai/robots)"
     }
-  ]
