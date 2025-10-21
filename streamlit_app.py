@@ -44,7 +44,7 @@ if uploaded_file is not None:
         # ----------------------------
         # INITIALISATION DU DICTIONNAIRE DE COMPTE
         # ----------------------------
-        robots_count = {robot["name"]: 0 for robot in robots_data}
+        robots_count = {robot["name"]: 0 for robots-ia in robots_data}
 
         # ----------------------------
         # LECTURE DU FICHIER DE LOG LIGNE PAR LIGNE
@@ -57,8 +57,8 @@ if uploaded_file is not None:
         # RECHERCHE DES USER-AGENTS DANS LES LOGS
         # ----------------------------
         for line in lines:
-            for robot in robots_data:
-                user_agent = robot["user-agent"]
+            for robots-ia in robots_data:
+                user_agent = robots-ia["user-agent"]
                 # Si le user-agent est trouvé dans la ligne, on incrémente le compteur
                 if user_agent in line:
                     robots_count[robot["name"]] += 1
