@@ -1,4 +1,3 @@
-name_bot;user-agent;ip
 ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";104.210.140
 ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";135.234.64
 ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.193
@@ -221,3 +220,4 @@ Google-Gemini;Google-Extended;66.249.
 MistralAI-User;"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; MistralAI-User/1.0; +https://docs.mistral.ai/robots)";20.240.160
 MistralAI-User;"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; MistralAI-User/1.0; +https://docs.mistral.ai/robots)";20.240.160
 MistralAI-User;"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; MistralAI-User/1.0; +https://docs.mistral.ai/robots)";20.240.194
+
