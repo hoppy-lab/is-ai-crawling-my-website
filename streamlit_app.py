@@ -38,8 +38,10 @@ def load_ai_robots(url):
     else:
         return data  # sinon on suppose que c'est déjà une liste de robots
 
+
 # Chargement des robots
 ai_robots = load_ai_robots(ROBOTS_JSON_URL)
+st.write(ai_robots)
 
 # -------------------------------------------------------------
 # INTERFACE POUR UPLOAD DU FICHIER DE LOG
@@ -76,3 +78,4 @@ if uploaded_file is not None:
         # Affichage du tableau
         st.subheader("AI Crawlers Found in Your Logs")
         st.dataframe(df_counts)
+        
