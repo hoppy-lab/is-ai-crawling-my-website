@@ -51,4 +51,34 @@ Upload a log file (less than 50 MB) and it will scan for known AI crawlers.
 """)
 
 # Input fichier de logs
-uploaded_file = st.file_uploader
+uploaded_file = st.file_uploader(
+    "Upload your log file (max 50 MB, uncompressed)", 
+    type=None  # autorise tous types sauf compressé
+)
+
+# URL du fichier JSON des robots IA
+robots_json_url = "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website/refs/heads/main/robots-ia.json"
+
+# Chargement des robots IA
+robots = load_robots_data(robots_json_url)
+
+# Si un fichier est uploadé
+if uploaded_file is not None:
+    # Limite de 50 MB
+    if uploaded_file.size > 50 * 1024 * 1024:
+        st.error("File too large! Maximum allowed size is 50 MB.")
+    else:
+        # Analyse du fichier
+        st.info("Analyzing your log file, please wait...")
+        results = analyze_logs(uploaded_file, robots)
+        
+        # Création d'un DataFrame pour un affichage clair
+        df_results = pd.DataFrame(list(results.items()), columns=['AI Crawler', 'Occurrences'])
+        
+        # Affichage des résultats
+        st.subheader("Detected AI Crawlers")
+        st.dataframe(df_results.sort_values(by='Occurrences', ascending=False))
+        
+        # Message si aucun crawler n'est trouvé
+        if df_results['Occurrences'].sum() == 0:
+            st.success("No AI crawlers detected in your logs!")
