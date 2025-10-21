@@ -36,7 +36,18 @@ if uploaded_file is not None:
         robots_url = "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website/refs/heads/main/robots-ia.json"
         response = requests.get(robots_url)
         if response.status_code == 200:
-            robots_data = response.json()
+            try:
+                robots_data = response.json()
+
+                # Vérifier que la clé 'crawlers' existe
+                if "crawlers" in robots_data:
+                    robots_data = robots_data["crawlers"]
+                else:
+                    st.error("Unexpected JSON structure. Key 'crawlers' not found.")
+                    st.stop()
+            except json.JSONDecodeError:
+                st.error("Error decoding JSON from robots URL.")
+                st.stop()
         else:
             st.error("Unable to fetch AI robots database.")
             st.stop()
@@ -44,12 +55,12 @@ if uploaded_file is not None:
         # ----------------------------
         # INITIALISATION DU DICTIONNAIRE DE COMPTE
         # ----------------------------
-        robots_count = {robot["name"]: 0 for robots-ia in robots_data}
+        # Chaque robot IA commence avec un compteur à 0
+        robots_count = {robot["name"]: 0 for robot in robots_data}
 
         # ----------------------------
         # LECTURE DU FICHIER DE LOG LIGNE PAR LIGNE
         # ----------------------------
-        # Conversion en string pour parcourir ligne par ligne
         log_content = uploaded_file.read().decode("utf-8", errors="ignore")
         lines = log_content.splitlines()
 
@@ -57,9 +68,8 @@ if uploaded_file is not None:
         # RECHERCHE DES USER-AGENTS DANS LES LOGS
         # ----------------------------
         for line in lines:
-            for robots-ia in robots_data:
-                user_agent = robots-ia["user-agent"]
-                # Si le user-agent est trouvé dans la ligne, on incrémente le compteur
+            for robot in robots_data:
+                user_agent = robot["user-agent"]
                 if user_agent in line:
                     robots_count[robot["name"]] += 1
 
@@ -74,7 +84,7 @@ if uploaded_file is not None:
             }
         )
 
-        # Affichage seulement des robots trouvés au moins une fois
+        # Afficher seulement les robots trouvés au moins une fois
         result_df = result_df[result_df["Occurrences in Logs"] > 0]
 
         if not result_df.empty:
