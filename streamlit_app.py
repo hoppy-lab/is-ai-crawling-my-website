@@ -47,12 +47,17 @@ if uploaded_file is not None:
         df_results = pd.DataFrame(robots_data)
         df_results["count_user_agent_ip"] = 0  # Initialisation du compteur
 
-        # Parcours de chaque ligne du log
-        for line in log_lines:
-            for i, robot in enumerate(robots_data):
-                # Comptage si le user-agent ET le préfixe IP sont trouvés
-                if robot["user_agent"] in line and robot["ip_prefix"] in line:
-                    df_results.at[i, "count_user_agent_ip"] += 1
+# Parcours de chaque ligne du log
+for line in log_lines:
+    for i, robot in enumerate(robots_data):
+        # Vérifie si le user-agent est dans la ligne
+        if robot["user_agent"] in line:
+            # Vérifie que l'IP correspond au préfixe du robot
+            # On suppose que l'adresse IP est en début de ligne ou quelque part dans la ligne
+            # On recherche " IP_PREFIX" ou "IP_PREFIX." pour éviter les faux positifs
+            if any(ip_candidate.startswith(robot["ip_prefix"]) for ip_candidate in line.split()):
+                df_results.at[i, "count_user_agent_ip"] += 1
+
 
         # Groupement par user-agent pour éviter les doublons
         df_grouped = df_results.groupby("user_agent").agg({
