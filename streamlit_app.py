@@ -1,67 +1,79 @@
+# Importation des librairies nécessaires
 import streamlit as st
 import pandas as pd
+import requests
 
-# -------------------------------------------------------------
 # Titre et description de l'application
-# -------------------------------------------------------------
-st.set_page_config(page_title="Is AI Crawling My Website?", page_icon="🤖", layout="centered")
+st.set_page_config(page_title="Is AI Crawling My Website?")
 st.title("Is AI Crawling My Website?")
-st.write("This application detects the presence of AI bots in your website logs by analyzing User-Agent strings.")
-
-# -------------------------------------------------------------
-# Téléchargement du fichier de logs
-# -------------------------------------------------------------
-uploaded_file = st.file_uploader(
-    "Upload your log file (less than 50 MB, any text format, uncompressed)",
-    type=["log", "txt", "csv", "tsv"],
+st.write(
+    "This application helps you detect the presence of AI bots in your website logs. "
+    "Upload a log file and the app will analyze it to check if any known AI crawlers visited your site."
 )
 
-# -------------------------------------------------------------
-# Chargement du fichier de référence contenant les robots IA
-# -------------------------------------------------------------
-robots_url = "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website/refs/heads/main/robots-ia.csv"
+# Section pour télécharger le fichier de log
+st.header("Upload your log file")
+uploaded_file = st.file_uploader(
+    "Choose a log file (less than 50MB, uncompressed)",
+    type=None,
+    accept_multiple_files=False
+)
 
-@st.cache_data
-def load_robots(url):
-    """
-    Charge le fichier CSV depuis GitHub.
-    Le séparateur est une tabulation, les chaînes entre guillemets sont conservées correctement.
-    """
-    df = pd.read_csv(
-        url,
-        sep="\t",        # Tabulation
-        header=None,     # Pas d'en-tête dans le CSV
-        names=["name", "user_agent", "ip_start"],  # Nom des colonnes
-        quotechar='"'    # Gère les guillemets autour du User-Agent
-    )
-    return df
-
-robots_df = load_robots(robots_url)
-
-# Affichage des robots connus
-st.subheader("Known AI crawlers")
-st.dataframe(robots_df)
-
-# -------------------------------------------------------------
-# Analyse du fichier de logs uploadé
-# -------------------------------------------------------------
+# Vérification que l'utilisateur a bien uploadé un fichier
 if uploaded_file is not None:
-    st.info("Analyzing your log file... this may take a few seconds for large files.")
-    
-    # Initialisation d'un dictionnaire pour compter les occurrences
-    bot_counts = {name: 0 for name in robots_df["name"]}
-    
-    # Lecture ligne par ligne du fichier de logs
-    for line in uploaded_file:
-        if isinstance(line, bytes):
-            line = line.decode("utf-8", errors="ignore")
-        # Vérification de chaque User-Agent complet
-        for idx, row in robots_df.iterrows():
-            if row["user_agent"] in line:  # Utilisation du User-Agent complet
-                bot_counts[row["name"]] += 1
-    
-    # Affichage des résultats
-    st.subheader("AI crawler occurrences in your log file")
-    results_df = pd.DataFrame(list(bot_counts.items()), columns=["AI Crawler", "Occurrences"])
-    st.dataframe(results_df.sort_values(by="Occurrences", ascending=False))
-    st.success("Analysis complete!")
+    # Vérification de la taille du fichier
+    if uploaded_file.size > 50 * 1024 * 1024:
+        st.error("File too large! Please upload a file smaller than 50MB.")
+    else:
+        # Lecture du fichier ligne par ligne
+        log_lines = uploaded_file.read().decode("utf-8", errors="ignore").splitlines()
+
+        st.info(f"Uploaded file contains {len(log_lines)} lines")
+
+        # Téléchargement du fichier de référence contenant les robots IA
+        robots_url = "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website/refs/heads/main/robots-ia.txt"
+        response = requests.get(robots_url)
+        response.raise_for_status()  # Vérifie que le téléchargement s'est bien passé
+
+        # Préparation de la liste des robots IA
+        robots_data = []
+        for line in response.text.splitlines():
+            # Chaque ligne contient trois colonnes séparées par des tabulations
+            parts = line.strip().split("\t")
+            if len(parts) == 3:
+                robots_data.append({
+                    "name": parts[0],
+                    "user_agent": parts[1],
+                    "ip_prefix": parts[2]
+                })
+
+        # Création d'un dataframe pour mieux organiser les résultats
+        df_results = pd.DataFrame(robots_data)
+        df_results["count_user_agent"] = 0  # Initialisation du compteur pour le user-agent
+        df_results["count_user_agent_ip"] = 0  # Initialisation du compteur user-agent + IP
+
+        # Parcours de chaque ligne du log
+        for line in log_lines:
+            for i, robot in enumerate(robots_data):
+                # Condition 1 : Le user-agent est trouvé dans la ligne
+                if robot["user_agent"] in line:
+                    df_results.at[i, "count_user_agent"] += 1
+
+                    # Condition 2 : Le user-agent ET le préfixe IP sont trouvés
+                    if robot["ip_prefix"] in line:
+                        df_results.at[i, "count_user_agent_ip"] += 1
+
+        # Affichage des résultats
+        st.header("Detected AI crawlers in your logs")
+
+        # Affichage des counts simples (user-agent seulement)
+        st.subheader("Occurrences based on User-Agent")
+        st.dataframe(df_results[["name", "count_user_agent"]].sort_values(
+            by="count_user_agent", ascending=False
+        ))
+
+        # Affichage des counts avec IP
+        st.subheader("Occurrences based on User-Agent + IP prefix")
+        st.dataframe(df_results[["name", "count_user_agent_ip"]].sort_values(
+            by="count_user_agent_ip", ascending=False
+        ))
