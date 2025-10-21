@@ -19,26 +19,22 @@ uploaded_file = st.file_uploader(
     accept_multiple_files=False
 )
 
-# Vérification que l'utilisateur a bien uploadé un fichier
 if uploaded_file is not None:
-    # Vérification de la taille du fichier
     if uploaded_file.size > 50 * 1024 * 1024:
         st.error("File too large! Please upload a file smaller than 50MB.")
     else:
         # Lecture du fichier ligne par ligne
         log_lines = uploaded_file.read().decode("utf-8", errors="ignore").splitlines()
-
         st.info(f"Uploaded file contains {len(log_lines)} lines")
 
         # Téléchargement du fichier de référence contenant les robots IA
         robots_url = "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website/refs/heads/main/robots-ia.txt"
         response = requests.get(robots_url)
-        response.raise_for_status()  # Vérifie que le téléchargement s'est bien passé
+        response.raise_for_status()
 
         # Préparation de la liste des robots IA
         robots_data = []
         for line in response.text.splitlines():
-            # Chaque ligne contient trois colonnes séparées par des tabulations
             parts = line.strip().split("\t")
             if len(parts) == 3:
                 robots_data.append({
@@ -47,33 +43,25 @@ if uploaded_file is not None:
                     "ip_prefix": parts[2]
                 })
 
-        # Création d'un dataframe pour mieux organiser les résultats
+        # Création d'un dataframe pour organiser les résultats
         df_results = pd.DataFrame(robots_data)
-        df_results["count_user_agent"] = 0  # Initialisation du compteur pour le user-agent
-        df_results["count_user_agent_ip"] = 0  # Initialisation du compteur user-agent + IP
+        df_results["count_user_agent_ip"] = 0  # Initialisation du compteur
 
         # Parcours de chaque ligne du log
         for line in log_lines:
             for i, robot in enumerate(robots_data):
-                # Condition 1 : Le user-agent est trouvé dans la ligne
-                if robot["user_agent"] in line:
-                    df_results.at[i, "count_user_agent"] += 1
+                # Comptage si le user-agent ET le préfixe IP sont trouvés
+                if robot["user_agent"] in line and robot["ip_prefix"] in line:
+                    df_results.at[i, "count_user_agent_ip"] += 1
 
-                    # Condition 2 : Le user-agent ET le préfixe IP sont trouvés
-                    if robot["ip_prefix"] in line:
-                        df_results.at[i, "count_user_agent_ip"] += 1
+        # Groupement par user-agent pour éviter les doublons
+        df_grouped = df_results.groupby("user_agent").agg({
+            "count_user_agent_ip": "sum",
+            "name": "first"
+        }).reset_index()
 
         # Affichage des résultats
-        st.header("Detected AI crawlers in your logs")
-
-        # Affichage des counts simples (user-agent seulement)
-        st.subheader("Occurrences based on User-Agent")
-        st.dataframe(df_results[["name", "count_user_agent"]].sort_values(
-            by="count_user_agent", ascending=False
-        ))
-
-        # Affichage des counts avec IP
-        st.subheader("Occurrences based on User-Agent + IP prefix")
-        st.dataframe(df_results[["name", "count_user_agent_ip"]].sort_values(
+        st.header("Detected AI crawlers in your logs (User-Agent + IP)")
+        st.dataframe(df_grouped[["name", "count_user_agent_ip"]].sort_values(
             by="count_user_agent_ip", ascending=False
         ))
