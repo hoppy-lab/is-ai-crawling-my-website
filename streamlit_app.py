@@ -10,6 +10,8 @@ st.write(
     """
     Detect the presence of AI bots in your website logs. 
     Upload a log file (any text format, not compressed) and the app will check for known AI crawlers.
+    
+    The detection counts only lines where both the User-Agent fragment **and** the IP prefix match.
     """
 )
 
@@ -44,8 +46,8 @@ if uploaded_file is not None:
             st.write("List of AI crawlers known:")
             st.dataframe(robots_data["name"])  # Affiche uniquement les noms des robots
 
-            # --- Comptage des occurrences de chaque User-Agent dans les logs ---
-            st.write("Counting occurrences of each AI crawler in your logs...")
+            # --- Comptage des occurrences selon User-Agent ET IP ---
+            st.write("Counting occurrences of each AI crawler in your logs (User-Agent AND IP must match)...")
 
             crawler_counts = {}  # Dictionnaire pour stocker les résultats
 
@@ -53,11 +55,13 @@ if uploaded_file is not None:
             for index, row in robots_data.iterrows():
                 crawler_name = row["name"]  # Nom du robot IA
                 user_agent_fragment = str(row["user_agent_fragment"])  # Fragment du User-Agent
+                ip_prefix = str(row["ip_prefix"])  # Début de l'IP
                 count = 0  # Initialisation du compteur
 
-                # Parcours de chaque ligne de log pour chercher le fragment de User-Agent
+                # Parcours de chaque ligne de log
                 for line in log_lines:
-                    if user_agent_fragment in line:
+                    # Vérifie si la ligne contient à la fois le User-Agent et l'IP
+                    if user_agent_fragment in line and ip_prefix in line:
                         count += 1
                 
                 crawler_counts[crawler_name] = count  # Enregistrement du résultat
