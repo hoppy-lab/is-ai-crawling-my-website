@@ -1,26 +1,26 @@
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";104.210.140
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";135.234.64
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.193
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.193
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.194
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.194
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.195
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.209
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.211
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.213
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.224
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.203.190
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";20.14.99
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";20.168.18
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";20.169.6
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";20.169.7
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";20.171.123
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";20.171.53
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";20.25.151
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";20.42.10
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";51.8.102
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";74.7.228
-ChatGPT Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";74.7.229
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";104.210.140
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";135.234.64
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.193
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.193
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.194
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.194
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.195
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.209
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.211
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.213
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.182.224
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";172.203.190
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";20.14.99
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";20.168.18
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";20.169.6
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";20.169.7
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";20.171.123
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";20.171.53
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";20.25.151
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";20.42.10
+ChatGPT-Search Bot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";51.8.102
+ChatGPT-SearchBot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";74.7.228
+ChatGPT-SearchBot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";74.7.229
 ChatGPT-SearchBot;"OAI-SearchBot/1.0; +https://openai.com/searchbot";74.7.229
 ChatGPT-User;"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ChatGPT-User/1.0; +https://openai.com/bot";104.210.139
 ChatGPT-User;"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ChatGPT-User/1.0; +https://openai.com/bot";104.210.139
@@ -220,5 +220,6 @@ Google-Gemini;Google-Extended;66.249.
 MistralAI-User;"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; MistralAI-User/1.0; +https://docs.mistral.ai/robots)";20.240.160
 MistralAI-User;"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; MistralAI-User/1.0; +https://docs.mistral.ai/robots)";20.240.160
 MistralAI-User;"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; MistralAI-User/1.0; +https://docs.mistral.ai/robots)";20.240.194
+
 
 
