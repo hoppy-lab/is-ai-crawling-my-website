@@ -4,19 +4,16 @@ import streamlit as st
 import pandas as pd
 import requests
 import re
+import csv
 
 # ----------------------------
 # FONCTION POUR CHARGER LE JSON DES ROBOTS IA
 # ----------------------------
-# @st.cache_data  # décommenter pour production
+# @st.cache_data  # commenter pour dev, décommenter pour production
 def load_ai_robots(url):
-    """
-    Charge le fichier JSON contenant la liste des robots IA.
-    """
     response = requests.get(url)
     if response.status_code == 200:
-        robots = response.json()
-        return robots
+        return response.json()
     else:
         st.error("Impossible de charger la liste des robots IA.")
         return []
@@ -25,31 +22,22 @@ def load_ai_robots(url):
 # FONCTION POUR ANALYSER LES LOGS ET COMPTER LES OCCURRENCES
 # ----------------------------
 def analyze_logs(lines, ai_robots):
-    """
-    Compte les occurrences des robots IA dans le fichier de logs.
-    """
     counts = {robot['name']: 0 for robot in ai_robots}
-
     for line in lines:
         line_str = line.decode('utf-8', errors='ignore')
         for robot in ai_robots:
             if robot['user-agent'] in line_str:
                 counts[robot['name']] += 1
-
     return counts
 
 # ----------------------------
 # FONCTION POUR EXTRAIRE LES LIGNES DES ROBOTS IA
 # ----------------------------
 def extract_ai_lines(lines, ai_robots):
-    """
-    Récupère uniquement les lignes contenant un robot IA et extrait
-    IP, Path, Status et User-Agent.
-    """
     pattern_ip = r'\b\d{1,3}(?:\.\d{1,3}){3}\b'
     pattern_status = r'\b([2-5]\d{2})\b'
     pattern_get_path = r'\"(?:GET|POST) ([^ ]+)'
-    pattern_user_agent = r'\"([^\"]*)\"$'  # dernière chaîne entre guillemets
+    pattern_user_agent = r'\"([^\"]*)\"$'
 
     results = []
 
@@ -67,7 +55,8 @@ def extract_ai_lines(lines, ai_robots):
                         "IP": ip_match.group(0),
                         "Path": path_match.group(1),
                         "Status": status_match.group(1),
-                        "User-Agent": ua_match.group(1)
+                        "User-Agent": ua_match.group(1),
+                        "Robot Name": robot['name']
                     })
                 break  # ligne trouvée, pas besoin de vérifier les autres robots
 
@@ -83,13 +72,9 @@ This application helps you detect AI crawlers in your website logs.
 Upload your log file (max 50 MB), and it will search for known AI bots.
 """)
 
-# URL du JSON contenant les robots IA
 JSON_URL = "https://raw.githubusercontent.com/hoppy-lab/is-ai-crawling-my-website/refs/heads/main/robots-ia.json"
-
-# Chargement des robots IA
 ai_robots = load_ai_robots(JSON_URL)
 
-# Upload du fichier de logs
 uploaded_file = st.file_uploader(
     "Upload your log file (max 50 MB, uncompressed)", 
     type=None
@@ -117,7 +102,12 @@ if uploaded_file is not None:
             st.dataframe(df_ai_lines, use_container_width=True)
 
             # Téléchargement CSV
-            csv_data = df_ai_lines.to_csv(index=False, sep=';')
+            csv_data = df_ai_lines.to_csv(
+                index=False,
+                sep=',',
+                quoting=csv.QUOTE_ALL  # entoure toutes les colonnes de guillemets
+            )
+
             st.download_button(
                 label="Download AI lines as CSV",
                 data=csv_data,
