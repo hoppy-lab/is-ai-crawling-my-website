@@ -117,7 +117,7 @@ if uploaded_file is not None:
             st.dataframe(df_ai_lines, use_container_width=True)
 
             # Téléchargement CSV
-            csv_data = df_ai_lines.to_csv(index=False, sep=',')
+            csv_data = df_ai_lines.to_csv(index=False, sep=';')
             st.download_button(
                 label="Download AI lines as CSV",
                 data=csv_data,
