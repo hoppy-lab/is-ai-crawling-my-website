@@ -104,7 +104,7 @@ if uploaded_file is not None:
             # Téléchargement CSV
             csv_data = df_ai_lines.to_csv(
                 index=False,
-                sep=',',
+                sep=';',
                 quoting=csv.QUOTE_ALL  # entoure toutes les colonnes de guillemets
             )
 
