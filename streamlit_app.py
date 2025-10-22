@@ -79,8 +79,8 @@ if uploaded_file is not None:
         
         # 🔹 Inclure TOUS les robots, même ceux avec 0 occurrence
         df_results = pd.DataFrame(list(counts.items()), columns=["AI Robot Name", "Occurrences"])
-        df_results = df_results.sort_values(by="Occurrences", ascending=False)
-
+        df_results = df_results.sort_values(by="Occurrences", ascending=False).reset_index(drop=True)
+        
         st.subheader("AI Crawlers Overview")
         st.table(df_results)
 
