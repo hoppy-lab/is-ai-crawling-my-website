@@ -84,7 +84,6 @@ if uploaded_file is not None:
         
         # Création d'un DataFrame pour un rendu clair
         df_results = pd.DataFrame(list(counts.items()), columns=["AI Robot Name", "Occurrences"])
-        #df_results = df_results[df_results["Occurrences"] > 0]  # Filtrer les robots non détectés
         df_results = df_results.sort_values(by="Occurrences", ascending=False)
 
         if df_results.empty:
