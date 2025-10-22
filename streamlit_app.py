@@ -3,15 +3,19 @@
 import streamlit as st
 import pandas as pd
 import requests
-import re
+import json
 
 # ----------------------------
 # FONCTION POUR CHARGER LE JSON DES ROBOTS IA
 # ----------------------------
-# @st.cache_data  # décommenter pour production
+@st.cache_data
 def load_ai_robots(url):
     """
     Charge le fichier JSON contenant la liste des robots IA.
+    Args:
+        url (str): URL du fichier JSON.
+    Returns:
+        list: Liste de dictionnaires avec 'name' et 'user-agent'.
     """
     response = requests.get(url)
     if response.status_code == 200:
@@ -22,62 +26,37 @@ def load_ai_robots(url):
         return []
 
 # ----------------------------
-# FONCTION POUR ANALYSER LES LOGS ET COMPTER LES OCCURRENCES
+# FONCTION POUR PARCOURIR LE FICHIER DE LOGS
 # ----------------------------
-def analyze_logs(lines, ai_robots):
+def analyze_logs(log_file, ai_robots):
     """
-    Compte les occurrences des robots IA dans le fichier de logs.
+    Analyse les logs ligne par ligne et compte les occurrences des robots IA.
+    Args:
+        log_file (UploadedFile): Fichier de logs fourni par l'utilisateur.
+        ai_robots (list): Liste des robots IA avec 'name' et 'user-agent'.
+    Returns:
+        dict: Dictionnaire avec le nom du robot IA comme clé et le nombre d'occurrences comme valeur.
     """
+    # Initialisation du compteur pour chaque robot
     counts = {robot['name']: 0 for robot in ai_robots}
 
-    for line in lines:
+    # Lecture ligne par ligne du fichier
+    for line in log_file:
+        # Conversion en string si nécessaire
         line_str = line.decode('utf-8', errors='ignore')
+        # Vérification pour chaque robot
         for robot in ai_robots:
             if robot['user-agent'] in line_str:
                 counts[robot['name']] += 1
-
     return counts
-
-# ----------------------------
-# FONCTION POUR EXTRAIRE LES LIGNES DES ROBOTS IA
-# ----------------------------
-def extract_ai_lines(lines, ai_robots):
-    """
-    Récupère uniquement les lignes contenant un robot IA et extrait
-    IP, Path, Status et User-Agent.
-    """
-    pattern_ip = r'\b\d{1,3}(?:\.\d{1,3}){3}\b'
-    pattern_status = r'\b([2-5]\d{2})\b'
-    pattern_get_path = r'\"(?:GET|POST) ([^ ]+)'
-    pattern_user_agent = r'\"([^\"]*)\"$'  # dernière chaîne entre guillemets
-
-    results = []
-
-    for line in lines:
-        line_str = line.decode('utf-8', errors='ignore')
-        for robot in ai_robots:
-            if robot['user-agent'] in line_str:
-                ip_match = re.search(pattern_ip, line_str)
-                path_match = re.search(pattern_get_path, line_str)
-                status_match = re.search(pattern_status, line_str)
-                ua_match = re.search(pattern_user_agent, line_str)
-
-                if ip_match and path_match and status_match and ua_match:
-                    results.append({
-                        "IP": ip_match.group(0),
-                        "Path": path_match.group(1),
-                        "Status": status_match.group(1),
-                        "User-Agent": ua_match.group(1)
-                    })
-                break  # ligne trouvée, pas besoin de vérifier les autres robots
-
-    df = pd.DataFrame(results)
-    return df
 
 # ----------------------------
 # INTERFACE STREAMLIT
 # ----------------------------
+# Titre principal de l'application
 st.title("Is AI crawling my website?")
+
+# Description de l'application
 st.markdown("""
 This application helps you detect AI crawlers in your website logs.  
 Upload your log file (max 50 MB), and it will search for known AI bots.
@@ -92,37 +71,24 @@ ai_robots = load_ai_robots(JSON_URL)
 # Upload du fichier de logs
 uploaded_file = st.file_uploader(
     "Upload your log file (max 50 MB, uncompressed)", 
-    type=None
+    type=None  # Autorise tous les types de fichiers
 )
 
+# Analyse du fichier après upload
 if uploaded_file is not None:
     if uploaded_file.size > 50 * 1024 * 1024:
         st.error("File too large! Please upload a file smaller than 50 MB.")
     else:
-        lines = uploaded_file.readlines()
-
-        # Analyse des occurrences
-        counts = analyze_logs(lines, ai_robots)
+        with st.spinner("Analyzing logs..."):
+            counts = analyze_logs(uploaded_file, ai_robots)
+        
+        # Création d'un DataFrame pour un rendu clair
         df_results = pd.DataFrame(list(counts.items()), columns=["AI Robot Name", "Occurrences"])
-        df_results = df_results.sort_values(by="Occurrences", ascending=False).reset_index(drop=True)
+        #df_results = df_results[df_results["Occurrences"] > 0]  # Filtrer les robots non détectés
+        df_results = df_results.sort_values(by="Occurrences", ascending=False)
 
-        st.subheader("Detected AI Crawlers")
-        st.table(df_results)
-
-        # Extraction des lignes correspondant aux robots IA
-        df_ai_lines = extract_ai_lines(lines, ai_robots)
-
-        if not df_ai_lines.empty:
-            st.subheader("AI Lines Found")
-            st.dataframe(df_ai_lines, use_container_width=True)
-
-            # Téléchargement CSV
-            csv_data = df_ai_lines.to_csv(index=False, sep=',')
-            st.download_button(
-                label="Download AI lines as CSV",
-                data=csv_data,
-                file_name="ai_lines.csv",
-                mime="text/csv"
-            )
+        if df_results.empty:
+            st.success("No AI crawlers detected in your logs!")
         else:
-            st.success("No AI crawler lines found in your logs.")
+            st.subheader("Detected AI Crawlers")
+            st.table(df_results)
